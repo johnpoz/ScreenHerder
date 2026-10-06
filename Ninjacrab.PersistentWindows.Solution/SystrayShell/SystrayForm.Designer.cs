@@ -51,10 +51,13 @@ namespace PersistentWindows.SystrayShell
             this.settingsMenuItem.Text = "Settings…";
             this.settingsMenuItem.Font = new System.Drawing.Font(this.settingsMenuItem.Font, System.Drawing.FontStyle.Bold);
             this.settingsMenuItem.Click += (s, e) => OpenSettings();
+            this.settingsMenuItem.ToolTipText = "Change how ScreenHerder restores, its shortcuts, and manage saved layouts.";
             this.helpMenuItem.Text = "Help";
             this.helpMenuItem.Click += (s, e) => OpenHelp();
+            this.helpMenuItem.ToolTipText = "How ScreenHerder works, version, and credits.";
             this.exitMenuItem.Text = "Exit";
             this.exitMenuItem.Click += (s, e) => Exit();
+            this.exitMenuItem.ToolTipText = "Stop ScreenHerder until you start it again or next sign in.";
             this.contextMenuStripSysTray.ShowImageMargin = false;
             this.contextMenuStripSysTray.Items.AddRange(new ToolStripItem[] {
                 this.settingsMenuItem,

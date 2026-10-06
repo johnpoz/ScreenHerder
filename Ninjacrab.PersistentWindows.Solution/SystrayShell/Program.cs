@@ -1049,6 +1049,7 @@ if not errorlevel 1 goto wait_to_finish";
             Settings = s;
             systrayForm.ApplyHotkeys(s);
             systrayForm.Icons.SetEnabled(s.RestoreDesktopIcons);
+            systrayForm.ApplyTips(s);
         }
 
         public static void RestartForSettings()

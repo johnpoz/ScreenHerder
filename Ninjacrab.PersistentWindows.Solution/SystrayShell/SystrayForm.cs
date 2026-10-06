@@ -46,6 +46,7 @@ namespace PersistentWindows.SystrayShell
             quickMenu.Opening += (s, e) => BuildQuickMenu();
             quickMenu.Closed += (s, e) => notifyIconMain.ContextMenuStrip = contextMenuStripSysTray;
             quickMenu.SlotKeyPressed += HandleSlotKey;
+            ApplyTips(Program.Settings);
 
             hotkeys = new GlobalHotkeys();
             ApplyHotkeys(Program.Settings);
@@ -129,6 +130,7 @@ namespace PersistentWindows.SystrayShell
                 ShortcutKeyDisplayString = ShortcutText(Program.Settings.HotkeySaveAs)
             };
             saveAs.Font = new Font(saveAs.Font, FontStyle.Bold);
+            saveAs.ToolTipText = "Name and save where every window and desktop icon is right now.";
             saveAs.Click += (s, e) => BeginInvoke((Action)SaveDesktopAs);
             quickMenu.Items.Add(saveAs);
 
@@ -138,10 +140,12 @@ namespace PersistentWindows.SystrayShell
                 ShortcutKeyDisplayString = ShortcutText(Program.Settings.HotkeyUndo)
             };
             undo.Click += (s, e) => UndoLastRestore();
+            undo.ToolTipText = "Put windows and icons back the way they were before the last layout you loaded.";
             quickMenu.Items.Add(undo);
 
             var all = new ToolStripMenuItem("All Layouts…");
             all.Click += (s, e) => BeginInvoke((Action)(() => OpenSettings(showLayouts: true)));
+            all.ToolTipText = "See, load, rename or delete every saved layout, including ones for other monitors.";
             quickMenu.Items.Add(all);
         }
 
@@ -270,6 +274,7 @@ namespace PersistentWindows.SystrayShell
             {
                 settingsForm = new SettingsForm(Program.Settings);
                 settingsForm.FormClosed += (s, e) => settingsForm = null;
+                MinimizeToTray(settingsForm);
             }
             if (showLayouts)
                 settingsForm.ShowLayoutsTab();
@@ -284,9 +289,35 @@ namespace PersistentWindows.SystrayShell
             {
                 helpForm = new HelpForm();
                 helpForm.FormClosed += (s, e) => helpForm = null;
+                MinimizeToTray(helpForm);
             }
             helpForm.Show();
             helpForm.Activate();
+        }
+
+        // hover tips on the tray menus follow the "Show tips" setting
+        public void ApplyTips(ShSettings s)
+        {
+            quickMenu.ShowItemToolTips = s.ShowHoverTips;
+            contextMenuStripSysTray.ShowItemToolTips = s.ShowHoverTips;
+        }
+
+        // with "Minimize to the tray" on, a minimized ScreenHerder window
+        // leaves the taskbar; Settings / Help on the right-click menu bring it back
+        private bool trayHintShown;
+        private void MinimizeToTray(Form f)
+        {
+            f.Resize += (s, e) =>
+            {
+                if (f.WindowState != FormWindowState.Minimized || !Program.Settings.MinimizeToTray)
+                    return;
+                f.Hide();
+                if (!trayHintShown)
+                {
+                    trayHintShown = true;
+                    Balloon(f.Text + " is still open", "Right-click the sheep to bring it back.");
+                }
+            };
         }
 
         public void ApplyHotkeys(ShSettings s)

@@ -25,6 +25,8 @@ namespace PersistentWindows.SystrayShell
         [DataMember] public bool ShowSplash;               // brief splash at startup
         [DataMember] public bool NotifyOnRestore;          // balloon when an automatic restore runs
         [DataMember] public bool AskBeforeAutoRestore;     // prompt before restoring after a monitor change
+        [DataMember] public bool MinimizeToTray;           // minimized Settings/Help windows hide in the tray
+        [DataMember] public bool ShowHoverTips;            // 3-second hover explanations on options
 
         // ---------------- Restore behavior ----------------
         [DataMember] public double RestoreDelaySeconds;    // wait after a monitor change before restoring (0 = automatic)
@@ -75,6 +77,8 @@ namespace PersistentWindows.SystrayShell
             ShowSplash = false;
             NotifyOnRestore = false;
             AskBeforeAutoRestore = false;
+            MinimizeToTray = true;
+            ShowHoverTips = true;
 
             RestoreDelaySeconds = 0;
             ZOrderMode = 1;
