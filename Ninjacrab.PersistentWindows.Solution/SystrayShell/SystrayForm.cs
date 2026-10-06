@@ -24,6 +24,7 @@ namespace PersistentWindows.SystrayShell
         public bool autoUpgrade = false;
 
         private readonly GlobalHotkeys hotkeys;
+        public IconKeeper Icons { get; private set; }
         private SettingsForm settingsForm;
         private HelpForm helpForm;
         private bool dialogOpen;
@@ -48,6 +49,10 @@ namespace PersistentWindows.SystrayShell
 
             hotkeys = new GlobalHotkeys();
             ApplyHotkeys(Program.Settings);
+
+            // desktop icons are restored along with windows
+            Icons = new IconKeeper(this, Program.AppdataFolder);
+            Icons.SetEnabled(Program.Settings.RestoreDesktopIcons);
         }
 
         protected override void SetVisibleCore(bool value)
@@ -156,6 +161,7 @@ namespace PersistentWindows.SystrayShell
                 return;
             }
             Program.RestoreSnapshot(layout.Slot);
+            Icons.RestoreForLayout(layout.DisplayKey, layout.Slot);
             Program.Layouts.Touch(layout);
             Log.Event("restored layout {0} (slot {1})", layout.Name, layout.Slot);
         }
@@ -169,6 +175,7 @@ namespace PersistentWindows.SystrayShell
                 return;
             }
             Program.RestoreSnapshot(PersistentWindowProcessor.UndoSnapshotId);
+            Icons.RestoreUndo(key);
         }
 
         public void SaveDesktopAs()
@@ -225,6 +232,7 @@ namespace PersistentWindows.SystrayShell
         private void SaveToSlot(string key, int slot, string name)
         {
             Program.CaptureSnapshot(slot, prompt: false);
+            Icons.SaveForLayout(key, slot);
             Program.Layouts.Upsert(key, slot, name);
             Balloon("Layout saved", "\"" + name + "\" (key " + char.ToUpperInvariant(Program.SnapshotIdToChar(slot)) + ")");
         }
@@ -326,6 +334,7 @@ namespace PersistentWindows.SystrayShell
             Log.Event("Session exit");
 
             hotkeys.Dispose();
+            Icons.Dispose();
             notifyIconMain.Visible = false;
 
             Log.Exit();

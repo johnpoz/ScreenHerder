@@ -68,7 +68,7 @@ namespace PersistentWindows.SystrayShell
         private NumericUpDown restoreDelay;
         private ComboBox zorderMode;
         private CheckBox fastRestore, fixOffscreen, enhancedOffscreen, fixTaskbar, fixUnminimized,
-                         restoreNewWindows, restoreClosed, showDesktop;
+                         restoreNewWindows, restoreClosed, showDesktop, restoreIcons;
         // Shortcuts
         private HotkeyBox hkQuick, hkSaveAs, hkUndo;
         // Layouts
@@ -231,6 +231,9 @@ namespace PersistentWindows.SystrayShell
             restoreDelay = Number(0, 60, 1, 0.5m);
             Row(t, "Wait before restoring (seconds):", restoreDelay,
                 "0 lets ScreenHerder decide. Raise it if a dock or monitor takes a while to wake up and windows land in the wrong place.");
+            Heading(t, "Desktop Icons");
+            restoreIcons = Check(t, "Put desktop icons back too",
+                "Icons return to exactly where they were, both after a monitor change and when you load a layout. Icons you've deleted leave an empty spot; icons added since stay where they are. Turns off the desktop's Auto arrange icons option, which would otherwise pack icons together.");
             Heading(t, "How Windows Are Put Back");
             zorderMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
             zorderMode.Items.AddRange(new object[] { "Never", "Saved layouts only", "Always" });
@@ -357,6 +360,7 @@ namespace PersistentWindows.SystrayShell
             restoreNewWindows.Checked = v.RestoreNewWindowsToLastPosition;
             restoreClosed.Checked = v.RestoreClosedWindows;
             showDesktop.Checked = v.ShowDesktopWhenDisplayChanges;
+            restoreIcons.Checked = v.RestoreDesktopIcons;
 
             hkQuick.Value = v.HotkeyQuickMenu;
             hkSaveAs.Value = v.HotkeySaveAs;
@@ -389,6 +393,7 @@ namespace PersistentWindows.SystrayShell
                 RestoreNewWindowsToLastPosition = restoreNewWindows.Checked,
                 RestoreClosedWindows = restoreClosed.Checked,
                 ShowDesktopWhenDisplayChanges = showDesktop.Checked,
+                RestoreDesktopIcons = restoreIcons.Checked,
 
                 HotkeyQuickMenu = hkQuick.Value,
                 HotkeySaveAs = hkSaveAs.Value,
@@ -413,6 +418,7 @@ namespace PersistentWindows.SystrayShell
             var v = ReadControls();
 
             // the three shortcuts must differ from each other
+            // (desktop icon tracking applies immediately; no restart needed)
             var hk = new[] { v.HotkeyQuickMenu, v.HotkeySaveAs, v.HotkeyUndo };
             for (int i = 0; i < hk.Length; i++)
                 for (int j = i + 1; j < hk.Length; j++)
@@ -520,6 +526,7 @@ namespace PersistentWindows.SystrayShell
                 return;
             Program.Layouts.Remove(l);
             Program.pwp.DeleteSnapshot(l.DisplayKey, l.Slot);
+            Program.systrayForm.Icons.ForgetLayout(l.DisplayKey, l.Slot);
             RefreshLayouts();
         }
     }

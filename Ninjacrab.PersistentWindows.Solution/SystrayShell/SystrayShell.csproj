@@ -87,6 +87,8 @@
       <DependentUpon>SystrayForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
+    <Compile Include="DesktopIcons.cs" />
+    <Compile Include="IconKeeper.cs" />
     <Compile Include="HelpForm.cs">
       <SubType>Form</SubType>
     </Compile>

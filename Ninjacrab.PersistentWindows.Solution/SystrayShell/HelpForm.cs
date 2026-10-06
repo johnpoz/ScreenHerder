@@ -61,12 +61,13 @@ namespace PersistentWindows.SystrayShell
                 Text = string.Join(Environment.NewLine, new[]
                 {
                     "AUTOMATIC",
-                    "ScreenHerder watches your windows. When you plug in or unplug monitors, it puts every window back where it was the last time you used that exact set of monitors. There is nothing to do.",
+                    "ScreenHerder watches your windows and desktop icons. When you plug in or unplug monitors, it puts every window and every desktop icon back where it was the last time you used that exact set of monitors. There is nothing to do.",
+                    "Icons you've deleted since leave an empty spot; icons you've added stay where they are.",
                     "",
                     "LEFT-CLICK THE TRAY ICON",
                     "Opens the quick menu:",
                     "  - Your most recent saved layouts for the monitors connected right now. Click one to restore it.",
-                    "  - Save Desktop As: name and save the current arrangement.",
+                    "  - Save Desktop As: name and save the current arrangement of windows and desktop icons.",
                     "  - Undo Last Restore: go back to how things were before the last layout you loaded.",
                     "  - All Layouts: see, load, rename or delete every saved layout.",
                     "While the menu is open, press a layout's letter to restore it, or Shift + a letter to save into that slot.",

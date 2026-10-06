@@ -37,6 +37,7 @@ namespace PersistentWindows.SystrayShell
         [DataMember] public bool RestoreNewWindowsToLastPosition;
         [DataMember] public bool RestoreClosedWindows;     // reopen apps that were closed since the layout was saved
         [DataMember] public bool ShowDesktopWhenDisplayChanges;
+        [DataMember] public bool RestoreDesktopIcons;      // desktop icons go back with the windows
 
         // ---------------- Shortcuts (System.Windows.Forms.Keys incl. modifiers; 0 = none) ----------------
         [DataMember] public int HotkeyQuickMenu;
@@ -85,6 +86,7 @@ namespace PersistentWindows.SystrayShell
             RestoreNewWindowsToLastPosition = true;
             RestoreClosedWindows = false;
             ShowDesktopWhenDisplayChanges = false;
+            RestoreDesktopIcons = true;
 
             HotkeyQuickMenu = (int)(Keys.Control | Keys.Alt | Keys.L);
             HotkeySaveAs = 0;
