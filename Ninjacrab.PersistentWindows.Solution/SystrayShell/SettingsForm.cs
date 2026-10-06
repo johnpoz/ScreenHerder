@@ -117,9 +117,9 @@ namespace PersistentWindows.SystrayShell
             var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
             var defaults = new Button { Text = "Restore Defaults", AutoSize = true };
             save.Click += (o, e) => SaveAndClose();
-            tips.SetToolTip(save, "Keep these settings. Changes to how windows are restored make ScreenHerder restart itself, which takes a couple of seconds.");
-            tips.SetToolTip(cancel, "Close without changing anything. Layout changes made on the Layouts tab are already saved.");
-            tips.SetToolTip(defaults, "Put every option on every tab back to how it came. Your saved layouts are not touched. Nothing changes until you click Save.");
+            Tip("Keep these settings. Changes to how windows are restored make ScreenHerder restart itself, which takes a couple of seconds.", save);
+            Tip("Close without changing anything. Layout changes made on the Layouts tab are already saved.", cancel);
+            Tip("Put every option on every tab back to how it came. Your saved layouts are not touched. Nothing changes until you click Save.", defaults);
             defaults.Click += (o, e) =>
             {
                 if (MessageBox.Show(this, "Reset every setting on every tab to its default? Your saved layouts are not affected.",
@@ -192,8 +192,33 @@ namespace PersistentWindows.SystrayShell
         {
             if (string.IsNullOrEmpty(text))
                 return;
+            string wrapped = Wrap(text, 70);
             foreach (var c in controls)
-                tips.SetToolTip(c, text);
+                tips.SetToolTip(c, wrapped);
+        }
+
+        // Windows tooltips don't wrap on their own, so a long tip runs off
+        // the edge of the screen; break it into lines of about 70 characters
+        private static string Wrap(string text, int width)
+        {
+            var sb = new System.Text.StringBuilder();
+            int line = 0;
+            foreach (var word in text.Split(' '))
+            {
+                if (line > 0 && line + 1 + word.Length > width)
+                {
+                    sb.Append(Environment.NewLine);
+                    line = 0;
+                }
+                else if (line > 0)
+                {
+                    sb.Append(' ');
+                    line++;
+                }
+                sb.Append(word);
+                line += word.Length;
+            }
+            return sb.ToString();
         }
 
         private CheckBox Check(TableLayoutPanel t, string text, string hint = null, string tip = null)

@@ -18,7 +18,11 @@ When you run the installer, Windows will warn that it comes from an unknown publ
 
 ScreenHerder lives in the Windows notification area (system tray) as a small sheep. It watches window moves as they happen and records desktop icon positions every few seconds. When a monitor is connected or disconnected, it recognizes the setup and restores the windows and icons it last saw for that exact combination of screens. Icons deleted since leave an empty spot; icons added since stay where they are.
 
+![The ScreenHerder sheep in the Windows system tray](docs/screenshots/tray-icon.png)
+
 ### Left-Click: Quick Menu
+
+![The left-click quick menu](docs/screenshots/quick-menu.png)
 
 - The monitor setup you're on now
 - Your most recent saved layouts for those monitors (5 by default, 1 to 20 in Settings), each with a letter
@@ -28,7 +32,11 @@ ScreenHerder lives in the Windows notification area (system tray) as a small she
 
 While the quick menu is open, a layout's letter restores it and Shift + a letter saves into that slot.
 
+![Naming a layout with Save Desktop As](docs/screenshots/save-desktop-as.png)
+
 ### Right-Click: Settings, Help, Exit
+
+![The right-click menu](docs/screenshots/right-click-menu.png)
 
 Settings has five tabs:
 
@@ -39,6 +47,12 @@ Settings has five tabs:
 - **Advanced:** apps to ignore, capture delay, extra window tricks, open the data folder
 
 Resting the pointer on any option for 3 seconds shows what it does.
+
+![Settings, General tab](docs/screenshots/settings-general.png)
+
+![Settings, Layouts tab](docs/screenshots/settings-layouts.png)
+
+More: [Restore](docs/screenshots/settings-restore.png) · [Shortcuts](docs/screenshots/settings-shortcuts.png) · [Advanced](docs/screenshots/settings-advanced.png)
 
 ## Installing
 

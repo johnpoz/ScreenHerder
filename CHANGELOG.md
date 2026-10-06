@@ -1,5 +1,11 @@
 # ScreenHerder Changelog
 
+## Unreleased
+
+- Hover tips wrap at about 70 characters. In 1.2.x long tips ran as one line off the edge of the screen (found while taking screenshots on MS-S1).
+- README: screenshots of the tray icon, quick menu, Save Desktop As, right-click menu and Settings (docs/screenshots).
+- Verified on MS-S1 with 1.2.0: Save Desktop As via shortcut, letter-key restore from the quick menu, Undo enabled after a restore, all Settings tabs render.
+
 ## 1.2.1 (2026-10-06)
 
 - Credits now say ScreenHerder includes the PersistentWindows window-tracking engine and list what ScreenHerder adds (Help window, splash, file properties, README).
