@@ -22,6 +22,7 @@ namespace PersistentWindows.SystrayShell
         [DataMember] public int Slot;            // engine snapshot id 0..35
         [DataMember] public DateTime SavedAt;
         [DataMember] public DateTime LastUsed;   // last save or restore
+        [DataMember] public List<AppRecord> Apps; // programs to reopen if they aren't running (1.3.0+)
 
         public char SlotChar
         {
@@ -92,7 +93,7 @@ namespace PersistentWindows.SystrayShell
         // -----------------------------------------------------------------
         // Section 2: changes (every change is written to disk immediately)
         // -----------------------------------------------------------------
-        public NamedLayout Upsert(string displayKey, int slot, string name)
+        public NamedLayout Upsert(string displayKey, int slot, string name, List<AppRecord> apps = null)
         {
             lock (sync)
             {
@@ -100,7 +101,7 @@ namespace PersistentWindows.SystrayShell
                 layouts.RemoveAll(l => l.DisplayKey == displayKey &&
                     (l.Slot == slot || string.Equals(l.Name, name, StringComparison.CurrentCultureIgnoreCase)));
                 var now = DateTime.Now;
-                var layout = new NamedLayout { Name = name, DisplayKey = displayKey, Slot = slot, SavedAt = now, LastUsed = now };
+                var layout = new NamedLayout { Name = name, DisplayKey = displayKey, Slot = slot, SavedAt = now, LastUsed = now, Apps = apps };
                 layouts.Add(layout);
                 Save();
                 return layout;

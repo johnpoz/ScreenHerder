@@ -1016,7 +1016,6 @@ if not errorlevel 1 goto wait_to_finish";
             if (!s.FixTaskbar) a.Add("-fix_taskbar=0");
             if (!s.FixUnminimized) a.Add("-fix_unminimized_window=0");
             if (!s.RestoreNewWindowsToLastPosition) a.Add("-auto_restore_new_window_to_last_capture=0");
-            if (s.RestoreClosedWindows) a.Add("-auto_restore_missing_windows=1");
             if (s.ShowDesktopWhenDisplayChanges) a.Add("-show_desktop_when_display_changes");
             if (!string.IsNullOrWhiteSpace(s.IgnoreProcesses)) { a.Add("-ignore_process"); a.Add(s.IgnoreProcesses.Trim()); }
             if (s.CaptureDelaySeconds > 0) { a.Add("-delay_auto_capture"); a.Add(s.CaptureDelaySeconds.ToString(c)); }

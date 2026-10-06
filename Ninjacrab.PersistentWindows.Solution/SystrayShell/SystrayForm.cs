@@ -166,6 +166,11 @@ namespace PersistentWindows.SystrayShell
             }
             Program.RestoreSnapshot(layout.Slot);
             Icons.RestoreForLayout(layout.DisplayKey, layout.Slot);
+            if (Program.Settings.ReopenClosedApps && layout.Apps != null)
+            {
+                AppLauncher.ReopenMissing(layout.Apps, skipped =>
+                    BeginInvoke((Action)(() => Balloon("Some apps weren't reopened", string.Join(", ", skipped)))));
+            }
             Program.Layouts.Touch(layout);
             Log.Event("restored layout {0} (slot {1})", layout.Name, layout.Slot);
         }
@@ -237,7 +242,7 @@ namespace PersistentWindows.SystrayShell
         {
             Program.CaptureSnapshot(slot, prompt: false);
             Icons.SaveForLayout(key, slot);
-            Program.Layouts.Upsert(key, slot, name);
+            Program.Layouts.Upsert(key, slot, name, AppLauncher.Capture());
             Balloon("Layout saved", "\"" + name + "\" (key " + char.ToUpperInvariant(Program.SnapshotIdToChar(slot)) + ")");
         }
 

@@ -1,5 +1,14 @@
 # ScreenHerder Changelog
 
+## 1.3.0 (2026-10-06)
+
+- Loading a layout reopens apps from it that aren't running and moves them into place. Store apps (Calculator, Photos and the like) are included on a best-effort basis, and Explorer folder windows reopen to the same folder. Programs start as the normal user, never with ScreenHerder's administrator rights.
+- Apps that have been uninstalled are skipped and their spot is left empty; a notice lists anything that couldn't be reopened.
+- An app with several windows is launched once; the windows it opens go to the saved spots in order.
+- Only when loading a named layout, never after a monitor change. On by default; Settings > Restore > "Reopen closed apps when I load a layout" turns it off.
+- Layouts now record each window's program, start-up arguments and position when saved. Layouts saved before 1.3.0 need to be saved again to reopen apps.
+- The old "Reopen apps that are part of a layout but were closed" option was wired to an engine feature ScreenHerder never used, so it did nothing; it's replaced by the setting above.
+
 ## 1.2.2 (2026-10-06)
 
 - Fix: windows and desktop icons could be impossible to move on a laptop. ScreenHerder (and the PersistentWindows engine underneath) restored on every Windows display event, including ones where the monitors hadn't changed at all (refresh-rate switching, docks waking, lock and unlock, sleep and wake), snapping things back while you moved them. Now nothing is restored unless the set of connected monitors actually changed; events with the same monitors are logged and ignored.

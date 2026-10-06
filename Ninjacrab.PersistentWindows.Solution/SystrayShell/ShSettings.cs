@@ -37,7 +37,8 @@ namespace PersistentWindows.SystrayShell
         [DataMember] public bool FixTaskbar;               // restore taskbar position too
         [DataMember] public bool FixUnminimized;
         [DataMember] public bool RestoreNewWindowsToLastPosition;
-        [DataMember] public bool RestoreClosedWindows;     // reopen apps that were closed since the layout was saved
+        [DataMember] public bool RestoreClosedWindows;     // (unused since 1.3.0; engine disk-database feature)
+        [DataMember] public bool ReopenClosedApps;         // loading a layout starts apps that aren't running
         [DataMember] public bool ShowDesktopWhenDisplayChanges;
         [DataMember] public bool RestoreDesktopIcons;      // desktop icons go back with the windows
 
@@ -89,6 +90,7 @@ namespace PersistentWindows.SystrayShell
             FixUnminimized = true;
             RestoreNewWindowsToLastPosition = true;
             RestoreClosedWindows = false;
+            ReopenClosedApps = true;
             ShowDesktopWhenDisplayChanges = false;
             RestoreDesktopIcons = true;
 

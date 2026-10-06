@@ -319,8 +319,8 @@ namespace PersistentWindows.SystrayShell
                 "Windows that were minimized during a monitor change come back to their proper spot and size when you open them again.");
             restoreNewWindows = Check(t, "Open new windows where that app's window was last", "When you reopen an app, its window returns to the spot it last had.",
                 "When you close an app and open it again, its window comes back where it was instead of wherever the app picks.");
-            restoreClosed = Check(t, "Reopen apps that are part of a layout but were closed", "Off by default. When restoring, ScreenHerder starts any missing app again.",
-                "When you restore, any app that was open when the layout was saved but has since been closed is started again and put in its spot.");
+            restoreClosed = Check(t, "Reopen closed apps when I load a layout", "Apps in the layout that aren't running are started and moved into place. Apps that have been uninstalled are skipped.",
+                "When you load a saved layout, any app that was open when you saved it but isn't running now is started again and moved to its spot. Store apps are included. If an app has been uninstalled its spot is left empty, and a notice lists what couldn't be reopened. This never happens after a monitor change, only when you load a layout. Layouts saved before version 1.3 don't know their apps yet; save them again to include them.");
             showDesktop = Check(t, "Show the desktop briefly when monitors change", null,
                 "Minimizes everything for a moment while monitors switch, then brings it back. Can reduce flicker on some docks.");
             return page;
@@ -446,7 +446,7 @@ namespace PersistentWindows.SystrayShell
             fixTaskbar.Checked = v.FixTaskbar;
             fixUnminimized.Checked = v.FixUnminimized;
             restoreNewWindows.Checked = v.RestoreNewWindowsToLastPosition;
-            restoreClosed.Checked = v.RestoreClosedWindows;
+            restoreClosed.Checked = v.ReopenClosedApps;
             showDesktop.Checked = v.ShowDesktopWhenDisplayChanges;
             restoreIcons.Checked = v.RestoreDesktopIcons;
 
@@ -481,7 +481,7 @@ namespace PersistentWindows.SystrayShell
                 FixTaskbar = fixTaskbar.Checked,
                 FixUnminimized = fixUnminimized.Checked,
                 RestoreNewWindowsToLastPosition = restoreNewWindows.Checked,
-                RestoreClosedWindows = restoreClosed.Checked,
+                ReopenClosedApps = restoreClosed.Checked,
                 ShowDesktopWhenDisplayChanges = showDesktop.Checked,
                 RestoreDesktopIcons = restoreIcons.Checked,
 

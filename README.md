@@ -32,6 +32,8 @@ ScreenHerder lives in the Windows notification area (system tray) as a small she
 
 While the quick menu is open, a layout's letter restores it and Shift + a letter saves into that slot.
 
+Loading a layout also reopens any app from it that isn't running and moves it into place, Store apps included. Apps that have been uninstalled are skipped and their spot stays empty. This only happens when you load a layout, never after a monitor change.
+
 ![Naming a layout with Save Desktop As](docs/screenshots/save-desktop-as.png)
 
 ### Right-Click: Settings, Help, Exit
@@ -41,7 +43,7 @@ While the quick menu is open, a layout's letter restores it and Shift + a letter
 Settings has five tabs:
 
 - **General:** start at sign-in, splash, restore notifications, ask before restoring, minimize windows to the tray, hover tips on or off, how many layouts the quick menu shows
-- **Restore:** desktop icons on or off, restore delay, window stacking order, off-screen rescue, taskbar, minimized windows, reopen closed apps
+- **Restore:** desktop icons on or off, restore delay, window stacking order, off-screen rescue, taskbar, minimized windows, reopen closed apps when loading a layout
 - **Shortcuts:** system-wide keys for the quick menu (Ctrl+Alt+L by default), Save Desktop As, and Undo
 - **Layouts:** every saved layout with Load, Rename, Delete
 - **Advanced:** apps to ignore, capture delay, extra window tricks, open the data folder
@@ -71,7 +73,7 @@ The app compiles on Linux or Windows with the .NET SDK's MSBuild against .NET Fr
 ```
 dotnet build Ninjacrab.PersistentWindows.Solution/Ninjacrab.PersistentWindows.Solution.sln -c Release \
   /p:FrameworkPathOverride=/usr/lib/mono/4.8-api /p:EnableWindowsTargeting=true
-makensis -DVERSION=1.2.2 installer/ScreenHerder.nsi
+makensis -DVERSION=1.3.0 installer/ScreenHerder.nsi
 ```
 
 `Directory.Build.targets` wires the NuGet references that non-SDK projects otherwise lose outside Visual Studio. See CHANGELOG.md for what changed in each version.

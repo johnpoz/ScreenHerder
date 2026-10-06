@@ -71,6 +71,7 @@ namespace PersistentWindows.SystrayShell
                     "  - Undo Last Restore: go back to how things were before the last layout you loaded.",
                     "  - All Layouts: see, load, rename or delete every saved layout.",
                     "While the menu is open, press a layout's letter to restore it, or Shift + a letter to save into that slot.",
+                    "Loading a layout also reopens apps from it that aren't running and moves them into place (Store apps included). Uninstalled apps are skipped.",
                     "",
                     "RIGHT-CLICK THE TRAY ICON",
                     "Settings, Help and Exit. In Settings, rest the pointer on any option for 3 seconds to see what it does (turn tips off under General).",
