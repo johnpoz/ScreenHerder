@@ -4,7 +4,15 @@ ScreenHerder is a Windows tray app that puts your windows and desktop icons back
 
 Move your laptop from the office dock to the home desk and back, and every window lands on the right screen at the right size, and every desktop icon returns to its spot, without you dragging anything. It remembers a separate arrangement for each monitor setup it sees, and lets you save named layouts ("Shop Desk", "Home Coding") and switch between them with one click.
 
-Maintained by John Pozadzides ([johnp.me](https://johnp.me)). Not yet publicly released.
+Maintained by John Pozadzides ([johnp.me](https://johnp.me)).
+
+## Download
+
+**[Download the latest ScreenHerder installer](https://github.com/johnpoz/ScreenHerder/releases/latest)**, then on that page click `ScreenHerder-Setup-<version>.exe` under **Assets** and run it.
+
+### "Windows Protected Your PC"
+
+When you run the installer, Windows will warn that it comes from an unknown publisher. That's expected: ScreenHerder is a small personal project, and it isn't signed with a paid code-signing certificate. Click **More info**, then **Run anyway**. Windows then asks for permission to make changes; click **Yes**, which lets the installer set ScreenHerder to start when you sign in.
 
 ## How It Works
 
@@ -34,7 +42,7 @@ Resting the pointer on any option for 3 seconds shows what it does.
 
 ## Installing
 
-Run ScreenHerder-Setup-<version>.exe. It installs to `%LOCALAPPDATA%\Programs\ScreenHerder`, adds a Start menu entry, optionally a desktop shortcut, and (by default) a sign-in task so ScreenHerder starts with the rights it needs to move every window. It removes the original PersistentWindows first if present. Uninstall from Settings > Apps. The installer is unsigned, so Windows SmartScreen asks once: More info > Run anyway.
+Run ScreenHerder-Setup-<version>.exe. It installs to `%LOCALAPPDATA%\Programs\ScreenHerder`, adds a Start menu entry, optionally a desktop shortcut, and (by default) a sign-in task so ScreenHerder starts with the rights it needs to move every window. It removes the original PersistentWindows first if present. Uninstall from Settings > Apps. The installer is unsigned; see "Windows Protected Your PC" above.
 
 Data lives in `%LOCALAPPDATA%\ScreenHerder`: settings.json, layouts.json, icons.json and the window history database.
 
@@ -49,7 +57,7 @@ The app compiles on Linux or Windows with the .NET SDK's MSBuild against .NET Fr
 ```
 dotnet build Ninjacrab.PersistentWindows.Solution/Ninjacrab.PersistentWindows.Solution.sln -c Release \
   /p:FrameworkPathOverride=/usr/lib/mono/4.8-api /p:EnableWindowsTargeting=true
-makensis -DVERSION=1.2.0 installer/ScreenHerder.nsi
+makensis -DVERSION=1.2.1 installer/ScreenHerder.nsi
 ```
 
 `Directory.Build.targets` wires the NuGet references that non-SDK projects otherwise lose outside Visual Studio. See CHANGELOG.md for what changed in each version.
