@@ -1,5 +1,10 @@
 # ScreenHerder Changelog
 
+## 1.2.1 (2026-10-06)
+
+- Credits now say ScreenHerder includes the PersistentWindows window-tracking engine and list what ScreenHerder adds (Help window, splash, file properties, README).
+- README: Download section linking the latest release, with what to do when Windows warns the installer is unsigned.
+
 ## 1.2.0 (2026-10-06)
 
 - Settings > General: "Start ScreenHerder when I sign in" turns the sign-in task on or off (asks Windows for permission because it edits a scheduled task).
