@@ -1,6 +1,9 @@
 # ScreenHerder Changelog
 
-## Unreleased
+## 1.2.2 (2026-10-06)
+
+- Fix: windows and desktop icons could be impossible to move on a laptop. ScreenHerder (and the PersistentWindows engine underneath) restored on every Windows display event, including ones where the monitors hadn't changed at all (refresh-rate switching, docks waking, lock and unlock, sleep and wake), snapping things back while you moved them. Now nothing is restored unless the set of connected monitors actually changed; events with the same monitors are logged and ignored.
+- Desktop icon tracking never talks to Explorer while a mouse button is held, so it can't interfere with dragging icons.
 
 - Hover tips wrap at about 70 characters. In 1.2.x long tips ran as one line off the edge of the screen (found while taking screenshots on MS-S1).
 - README: screenshots of the tray icon, quick menu, Save Desktop As, right-click menu and Settings (docs/screenshots).

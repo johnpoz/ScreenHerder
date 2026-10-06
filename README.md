@@ -71,7 +71,7 @@ The app compiles on Linux or Windows with the .NET SDK's MSBuild against .NET Fr
 ```
 dotnet build Ninjacrab.PersistentWindows.Solution/Ninjacrab.PersistentWindows.Solution.sln -c Release \
   /p:FrameworkPathOverride=/usr/lib/mono/4.8-api /p:EnableWindowsTargeting=true
-makensis -DVERSION=1.2.1 installer/ScreenHerder.nsi
+makensis -DVERSION=1.2.2 installer/ScreenHerder.nsi
 ```
 
 `Directory.Build.targets` wires the NuGet references that non-SDK projects otherwise lose outside Visual Studio. See CHANGELOG.md for what changed in each version.

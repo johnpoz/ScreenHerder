@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using System.Windows.Forms;
 
@@ -35,6 +36,17 @@ namespace PersistentWindows.SystrayShell
         private List<IconPos> lastRecorded;
         private bool enabled;
 
+        // monitor set before the current display event; icons are only
+        // put back when the set of monitors actually changed
+        private string keyBeforeChange;
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+        private static bool MouseButtonDown()
+        {
+            return (GetAsyncKeyState(0x01) & 0x8000) != 0 || (GetAsyncKeyState(0x02) & 0x8000) != 0;
+        }
+
         public IconKeeper(Control uiThreadControl, string dataFolder)
         {
             ui = uiThreadControl;
@@ -42,7 +54,21 @@ namespace PersistentWindows.SystrayShell
 
             trackTimer.Interval = TrackIntervalMs;
             trackTimer.Tick += (s, e) => Track();
-            firstPass.Tick += (s, e) => { firstPass.Stop(); RestoreLiveForCurrentMonitors(); secondPass.Start(); };
+            firstPass.Tick += (s, e) =>
+            {
+                firstPass.Stop();
+                string now = Program.pwp.GetDisplayKey();
+                if (now == keyBeforeChange)
+                {
+                    // a display event without a monitor change: leave the icons alone
+                    Log.Event("display event with the same monitors, desktop icons left alone");
+                    suspended = false;
+                    lastRecorded = null;
+                    return;
+                }
+                RestoreLiveForCurrentMonitors();
+                secondPass.Start();
+            };
             secondPass.Interval = SecondPassMs;
             secondPass.Tick += (s, e) => { secondPass.Stop(); RestoreLiveForCurrentMonitors(); resume.Start(); };
             resume.Interval = ResumeAfterMs;
@@ -74,7 +100,7 @@ namespace PersistentWindows.SystrayShell
         // ---------------- Section 2: continuous tracking ----------------
         private void Track()
         {
-            if (!enabled || suspended)
+            if (!enabled || suspended || MouseButtonDown())
                 return;
             string key = Program.pwp.CurrentDisplayKey;
             if (string.IsNullOrEmpty(key) || key != Program.pwp.GetDisplayKey())
@@ -96,7 +122,14 @@ namespace PersistentWindows.SystrayShell
         // ---------------- Section 3: monitor changes ----------------
         private void OnDisplayChanging(object sender, EventArgs e)
         {
-            Marshal(() => { if (enabled) suspended = true; });
+            Marshal(() =>
+            {
+                if (!enabled)
+                    return;
+                if (!suspended)
+                    keyBeforeChange = Program.pwp.CurrentDisplayKey;
+                suspended = true;
+            });
         }
 
         private void OnDisplayChanged(object sender, EventArgs e)
@@ -105,6 +138,8 @@ namespace PersistentWindows.SystrayShell
             {
                 if (!enabled)
                     return;
+                if (!suspended)
+                    keyBeforeChange = Program.pwp.CurrentDisplayKey;
                 suspended = true;
                 firstPass.Stop(); secondPass.Stop(); resume.Stop();
                 firstPass.Interval = (int)(Program.Settings.RestoreDelaySeconds * 1000) + SettleExtraMs;

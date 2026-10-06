@@ -85,6 +85,17 @@ namespace PersistentWindows.Common
         private int captureTimerStarted = 0;
         private string curDisplayKey; // current display config name
         private string prevDisplayKey;
+
+        // ScreenHerder: act only when the set of monitors really changes.
+        // Windows raises display events for many things that aren't a
+        // monitor change (refresh-rate switching, docks waking, lock and
+        // unlock, sleep); restoring on those snaps windows back while the
+        // user is moving them.
+        private string keyBeforeDisplayChange;
+        private bool displayChangePending;
+        private bool displayChangingActed;
+        private string keyAtLockOrSuspend;
+        private bool displayChangedWhileAway;
         public string dbDisplayKey = null;
         private static Dictionary<IntPtr, string> windowTitle = new Dictionary<IntPtr, string>(); // for matching running window with DB record
         private static Dictionary<IntPtr, string> windowTitleFast = new Dictionary<IntPtr, string>(); // for matching running window with DB record
@@ -969,11 +980,24 @@ namespace PersistentWindows.Common
             this.displaySettingsChangingHandler =
                 (s, e) =>
                 {
+                    string display_key = GetDisplayKey();
+                    if (!displayChangePending)
+                    {
+                        keyBeforeDisplayChange = curDisplayKey;
+                        displayChangePending = true;
+                        displayChangingActed = false;
+                    }
+                    if (display_key == keyBeforeDisplayChange)
+                    {
+                        Log.Event("Display setting changing, same monitors, ignored {0}", display_key);
+                        return;
+                    }
+                    displayChangingActed = true;
+
                     if (fastRestore)
                         process.PriorityClass = ProcessPriorityClass.High;
 
                     CancelRestoreTimer();
-                    string display_key = GetDisplayKey();
                     if (!freezeCapture)
                     {
                         lastDisplayChangeTime = DateTime.Now;
@@ -1001,9 +1025,20 @@ namespace PersistentWindows.Common
             this.displaySettingsChangedHandler =
                 (s, e) =>
                 {
+                    string display_key = GetDisplayKey();
+                    string key_before = displayChangePending ? keyBeforeDisplayChange : curDisplayKey;
+                    bool changing_acted = displayChangePending && displayChangingActed;
+                    displayChangePending = false;
+                    if (sessionLocked || !sessionActive)
+                        displayChangedWhileAway |= display_key != keyAtLockOrSuspend;
+                    if (display_key == key_before && !changing_acted)
+                    {
+                        Log.Event("Display setting changed, same monitors, ignored {0}", display_key);
+                        return;
+                    }
+
                     lastDisplayChangeTime = DateTime.Now;
                     CancelRestoreTimer();
-                    string display_key = GetDisplayKey();
                     Log.Event("Display setting changed {0}", display_key);
 
                     {
@@ -1074,6 +1109,8 @@ namespace PersistentWindows.Common
                     {
                         case PowerModes.Suspend:
                             Log.Event("System suspending");
+                            keyAtLockOrSuspend = curDisplayKey;
+                            displayChangedWhileAway = false;
                             {
                                 sessionActive = false;
                                 if (!sessionLocked)
@@ -1088,11 +1125,16 @@ namespace PersistentWindows.Common
                             {
                                 if (!sessionLocked)
                                 {
+                                    if (GetDisplayKey() == keyAtLockOrSuspend && !displayChangedWhileAway)
+                                    {
+                                        Log.Event("resume with the same monitors, no restore");
+                                        break;
+                                    }
                                     if (promptSessionRestore)
                                     {
                                         PromptSessionRestore();
                                     }
-                                    // force restore in case OS does not generate display changed event
+                                    // monitors changed while asleep
                                     restoringFromMem = true;
                                     StartRestoreTimer(milliSecond: SlowRestoreLatency);
                                 }
@@ -1111,6 +1153,8 @@ namespace PersistentWindows.Common
                         Log.Event("Session closing: reason {0}", args.Reason);
                         {
                             UndoCapture(DateTime.Now);
+                            keyAtLockOrSuspend = curDisplayKey;
+                            displayChangedWhileAway = false;
                             sessionLocked = true;
                             sessionActive = false;
                             EndDisplaySession();
@@ -1120,11 +1164,17 @@ namespace PersistentWindows.Common
                         Log.Event("Session opening: reason {0}", args.Reason);
                         {
                             sessionLocked = false;
+                            if (GetDisplayKey() == keyAtLockOrSuspend && !displayChangedWhileAway)
+                            {
+                                Log.Event("unlock with the same monitors, no restore");
+                                freezeCapture = false;
+                                break;
+                            }
                             if (promptSessionRestore)
                             {
                                 PromptSessionRestore();
                             }
-                            // force restore in case OS does not generate display changed event
+                            // monitors changed while locked
                             restoringFromMem = true;
                             StartRestoreTimer();
                         }
