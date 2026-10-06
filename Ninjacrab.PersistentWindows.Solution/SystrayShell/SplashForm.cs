@@ -29,7 +29,7 @@ namespace PersistentWindows.SystrayShell
         {
             // ScreenHerder branding; second line credits the upstream engine
             this.label1.Text = "ScreenHerder " + Application.ProductVersion + " is running in the notification area.";
-            this.label2.Text = "Built on PersistentWindows";
+            this.label2.Text = "Includes PersistentWindows";
         }
 
         private void label2_Click(object sender, EventArgs e)

@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("John Pozadzides")]
 [assembly: AssemblyProduct("ScreenHerder")]
-[assembly: AssemblyCopyright("Copyright © 2026 John Pozadzides. Based on PersistentWindows, copyright © 2014-2026 its contributors. GPL-3.0.")]
+[assembly: AssemblyCopyright("Copyright © 2026 John Pozadzides. Includes PersistentWindows, copyright © 2014-2026 its contributors. GPL-3.0.")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

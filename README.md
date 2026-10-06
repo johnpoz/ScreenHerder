@@ -56,6 +56,6 @@ makensis -DVERSION=1.2.0 installer/ScreenHerder.nsi
 
 ## Credits And License
 
-ScreenHerder is built on the window-tracking engine of [PersistentWindows](https://github.com/kangyu-california/PersistentWindows) by Kang Yu and contributors. The full upstream history is preserved in this repository.
+ScreenHerder includes the window-tracking engine of [PersistentWindows](https://github.com/kangyu-california/PersistentWindows) by Kang Yu and contributors. On top of it, ScreenHerder adds desktop icon restore, named layouts, its tray menus and settings, and the installer. The full upstream history is preserved in this repository.
 
 Licensed under the GNU General Public License v3.0, the same license as PersistentWindows.

@@ -85,7 +85,7 @@ namespace PersistentWindows.SystrayShell
                     "Each layout belongs to the set of monitors it was saved on. The quick menu only shows layouts you can use with the monitors you have now; Settings > Layouts shows all of them.",
                     "",
                     "CREDITS AND LICENSE",
-                    "ScreenHerder is built on the window-tracking engine of PersistentWindows by Kang Yu and contributors, and is distributed under the GNU General Public License v3.0.",
+                    "ScreenHerder includes the window-tracking engine of PersistentWindows by Kang Yu and contributors, and adds desktop icon restore, named layouts, and its own menus and settings. It is distributed under the GNU General Public License v3.0.",
                 })
             };
 
