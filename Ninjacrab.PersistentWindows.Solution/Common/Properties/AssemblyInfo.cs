@@ -1,14 +1,14 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("PersistentWindows.Common")]
+[assembly: AssemblyTitle("ScreenHerder.Engine")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("PersistentWindows.Common")]
+[assembly: AssemblyProduct("ScreenHerder")]
 [assembly: AssemblyCopyright("Copyright ©  2014-2023, PersistentWindows")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

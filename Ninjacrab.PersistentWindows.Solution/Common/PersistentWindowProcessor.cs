@@ -156,7 +156,7 @@ namespace PersistentWindows.Common
 
         private static HashSet<string> browserProcessNames = new HashSet<string>()
         {
-            "chrome", "firefox", "msedge", "vivaldi", "opera", "brave", "360ChromeX", "PersistentWindows"
+            "chrome", "firefox", "msedge", "vivaldi", "opera", "brave", "360ChromeX", "PersistentWindows", "ScreenHerder"
         };
 
         public bool dumpHistoryData = true;
@@ -2753,6 +2753,38 @@ namespace PersistentWindows.Common
             restoringFromMem = true;
             StartRestoreTimer(milliSecond: 0);
             Log.Event("restore snapshot {0}", id);
+        }
+
+        // =============================================================
+        // ScreenHerder: snapshot helpers used by the named-layout UI
+        // =============================================================
+
+        // slot reserved by the engine for "undo last snapshot restore"
+        public const int UndoSnapshotId = MaxSnapshots - 1;
+
+        // display configuration currently in effect (monitor set key)
+        public string CurrentDisplayKey
+        {
+            get { return curDisplayKey; }
+        }
+
+        // true when the given slot holds a snapshot for the given monitor set
+        public bool HasSnapshot(string displayKey, int id)
+        {
+            if (String.IsNullOrEmpty(displayKey))
+                return false;
+            var times = snapshotTakenTime;
+            return times.ContainsKey(displayKey) && times[displayKey].ContainsKey(id);
+        }
+
+        // forget a saved snapshot slot for one monitor set
+        public void DeleteSnapshot(string displayKey, int id)
+        {
+            if (!HasSnapshot(displayKey, id))
+                return;
+            snapshotTakenTime[displayKey].Remove(id);
+            WriteDataDump();
+            Log.Event("Snapshot {0} deleted for {1}", id, displayKey);
         }
 
         private void CaptureCursorPos(string displayKey)

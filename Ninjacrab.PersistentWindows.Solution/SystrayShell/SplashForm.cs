@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using PersistentWindows.Common;
 using System.Windows.Forms;
 
@@ -27,7 +27,9 @@ namespace PersistentWindows.SystrayShell
 
         private void SplashForm_Load(object sender, EventArgs e)
         {
-            this.label1.Text = Lang.T("splash.info", Application.ProductVersion);
+            // ScreenHerder branding; second line credits the upstream engine
+            this.label1.Text = "ScreenHerder " + Application.ProductVersion + " is running in the notification area.";
+            this.label2.Text = "Built on PersistentWindows";
         }
 
         private void label2_Click(object sender, EventArgs e)

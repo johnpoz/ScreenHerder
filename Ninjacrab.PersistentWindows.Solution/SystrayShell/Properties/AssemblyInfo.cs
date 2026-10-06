@@ -1,15 +1,15 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("PersistentWindows")]
+[assembly: AssemblyTitle("ScreenHerder")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("PersistentWindows")]
-[assembly: AssemblyCopyright("Copyright © 2014 - 2026, PersistentWindows")]
+[assembly: AssemblyCompany("John Pozadzides")]
+[assembly: AssemblyProduct("ScreenHerder")]
+[assembly: AssemblyCopyright("Copyright © 2026 John Pozadzides. Based on PersistentWindows, copyright © 2014-2026 its contributors. GPL-3.0.")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -31,5 +31,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("5.77.*")]
+[assembly: AssemblyVersion("1.0.*")]
 

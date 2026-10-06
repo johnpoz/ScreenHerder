@@ -1,0 +1,50 @@
+<Project>
+  <!-- =============================================================
+       ScreenHerder build support (cross-platform builds with the
+       .NET SDK's MSBuild on Linux or Windows).
+       ============================================================= -->
+
+  <!-- Section 1: framework and resource settings -->
+  <PropertyGroup>
+    <!-- Embed .resx images/icons without the old BinaryFormatter path -->
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    <!-- Write assembly binding redirects into the .exe.config -->
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
+  <!-- Section 2: explicit references to NuGet assemblies.
+       Old-style (non-SDK) projects built outside Visual Studio restore
+       PackageReference packages but never add them as references, so
+       they are wired here from the NuGet cache. -->
+  <ItemGroup Condition="'$(NuGetPackageRoot)' != ''">
+    <Reference Include="LiteDB">
+      <HintPath>$(NuGetPackageRoot)litedb/5.0.17/lib/net45/LiteDB.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Resources.Extensions">
+      <HintPath>$(NuGetPackageRoot)system.resources.extensions/8.0.0/lib/net462/System.Resources.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>$(NuGetPackageRoot)system.memory/4.5.5/lib/net461/System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Buffers">
+      <HintPath>$(NuGetPackageRoot)system.buffers/4.5.1/lib/net461/System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>$(NuGetPackageRoot)system.numerics.vectors/4.5.0/lib/net46/System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>$(NuGetPackageRoot)system.runtime.compilerservices.unsafe/4.5.3/lib/net461/System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Section 3: stage the translations file next to the exe (the engine
+       reads its message text from it). Replaces upstream's Windows-only
+       "copy" post-build event; autostart is handled by the installer. -->
+  <Target Name="ScreenHerderStageSupportFiles" AfterTargets="Build" Condition="'$(MSBuildProjectName)' == 'SystrayShell'">
+    <ItemGroup>
+      <ShSupport Include="$(MSBuildThisFileDirectory)translations.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ShSupport)" DestinationFolder="$(TargetDir)" />
+  </Target>
+</Project>

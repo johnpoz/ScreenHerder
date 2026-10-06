@@ -1,347 +1,323 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using PersistentWindows.Common;
-using System.Windows.Forms;
-using System.Net;
-using System.Timers;
-using System.IO;
-using System.IO.Compression;
 using System.Drawing;
+using System.Linq;
 using System.Reflection;
+using System.Windows.Forms;
 
+using PersistentWindows.Common;
 using PersistentWindows.Common.Diagnostics;
-using PersistentWindows.Common.WinApiBridge;
 
 namespace PersistentWindows.SystrayShell
 {
+    // =====================================================================
+    // ScreenHerder tray icon.
+    //   Left-click  -> quick menu (recent layouts, Save Desktop As,
+    //                  Undo Last Restore, All Layouts)
+    //   Right-click -> Settings, Help, Exit
+    // =====================================================================
     public partial class SystrayForm : Form
     {
-        private const int MaxSnapshots = 38; // 0-9, a-z, ` and final one for undo
-
-        private bool pauseAutoRestore = false;
+        // kept for the engine callbacks in Program.cs
         public bool toggleIcon = false;
-
-        private int skipUpgradeCounter = 0;
-        private bool initialCheckUpgrade = true;
-        private bool pauseUpgradeCounter = false;
-
         public bool autoUpgrade = false;
 
-        private ToolStripMenuItem languageMenuItem;
-        private bool upgradeNoticeOn = true;
-        private bool webpageCommanderOn = true;
-        private string upgradeAvailableVersion = null;
+        private readonly GlobalHotkeys hotkeys;
+        private SettingsForm settingsForm;
+        private HelpForm helpForm;
+        private bool dialogOpen;
 
-        private int ctrlKeyPressed = 0;
-        private int shiftKeyPressed = 0;
-        private int altKeyPressed = 0;
-        private int clickCount = 0;
-        private bool firstClick = false;
-        private bool doubleClick = false;
+        // NotifyIcon's own "show menu" routine sets the foreground window
+        // correctly so the menu takes keyboard input and closes on click-away
+        private static readonly MethodInfo showContextMenu =
+            typeof(NotifyIcon).GetMethod("ShowContextMenu", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private DateTime clickTime;
-
-        private System.Timers.Timer clickDelayTimer;
-
-        private Dictionary<string, bool> upgradeDownloaded = new Dictionary<string, bool>();
-
-        public SystrayForm(bool enable_upgrade_notice)
+        public SystrayForm()
         {
             InitializeComponent();
 
-            if (File.Exists(Program.DisableUpgradeNotice))
-                upgradeNoticeMenuItem.Text = Lang.T("menu.enableUpgradeNotice");
-            else if (!enable_upgrade_notice)
+            // create window handles now so engine threads can marshal calls
+            // onto this UI thread (BeginInvoke needs a handle)
+            CreateHandle();
+            var menuHandle = contextMenuStripSysTray.Handle;
+
+            quickMenu.Opening += (s, e) => BuildQuickMenu();
+            quickMenu.Closed += (s, e) => notifyIconMain.ContextMenuStrip = contextMenuStripSysTray;
+            quickMenu.SlotKeyPressed += HandleSlotKey;
+
+            hotkeys = new GlobalHotkeys();
+            ApplyHotkeys(Program.Settings);
+        }
+
+        protected override void SetVisibleCore(bool value)
+        {
+            // tray-only app: the host form never shows
+            base.SetVisibleCore(false);
+        }
+
+        // =================================================================
+        // Section 1: opening the quick menu (left-click or shortcut)
+        // =================================================================
+        private void IconMouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                ShowQuickMenu();
+        }
+
+        public void ShowQuickMenu()
+        {
+            if (dialogOpen)
+                return;
+            notifyIconMain.ContextMenuStrip = quickMenu;
+            if (showContextMenu != null)
+                showContextMenu.Invoke(notifyIconMain, null);
+            else
+                quickMenu.Show(Cursor.Position);
+        }
+
+        // =================================================================
+        // Section 2: building the quick menu each time it opens
+        // =================================================================
+        private void BuildQuickMenu()
+        {
+            quickMenu.Items.Clear();
+            string key = Program.pwp.CurrentDisplayKey;
+
+            // header: which monitor setup this is
+            var header = new ToolStripLabel(LayoutStore.DescribeMonitors(key))
             {
-                File.Create(Program.DisableUpgradeNotice);
-                upgradeNoticeMenuItem.Text = Lang.T("menu.enableUpgradeNotice");
+                ForeColor = SystemColors.GrayText,
+                Margin = new Padding(6, 4, 6, 2)
+            };
+            quickMenu.Items.Add(header);
+
+            // most recent layouts for the monitors connected right now
+            var layouts = Program.Layouts.ForDisplay(key)
+                .Where(l => Program.pwp.HasSnapshot(l.DisplayKey, l.Slot))
+                .Take(Program.Settings.QuickMenuCount)
+                .ToList();
+
+            if (layouts.Count == 0)
+            {
+                quickMenu.Items.Add(new ToolStripMenuItem("No saved layouts for these monitors yet") { Enabled = false });
             }
             else
-                upgradeNoticeMenuItem.Text = Lang.T("menu.disableUpgradeNotice");
-
-            upgradeNoticeOn = !File.Exists(Program.DisableUpgradeNotice);
-            webpageCommanderOn = !File.Exists(Program.DisableWebpageCommander);
-            if (File.Exists(Program.DisableWebpageCommander))
             {
-                invokeWebCommander.Text = Lang.T("menu.enableWebCommander");
-            }
-
-            // one sub-menu item per registered language; new languages appear here automatically
-            languageMenuItem = new ToolStripMenuItem(Lang.T("menu.language"));
-            foreach (string lang in Lang.Languages)
-            {
-                var item = new ToolStripMenuItem(Lang.DisplayName(lang))
+                foreach (var l in layouts)
                 {
-                    Tag = lang,
-                    Checked = lang == Lang.CurrentLang
-                };
-                item.Click += SelectLanguage;
-                languageMenuItem.DropDownItems.Add(item);
+                    var item = new ToolStripMenuItem(l.Name.Replace("&", "&&"))
+                    {
+                        ShortcutKeyDisplayString = char.ToUpperInvariant(l.SlotChar).ToString(),
+                        ToolTipText = "Saved " + l.SavedAt.ToString("g")
+                    };
+                    var captured = l;
+                    item.Click += (s, e) => RestoreLayout(captured);
+                    quickMenu.Items.Add(item);
+                }
             }
-            contextMenuStripSysTray.Items.Insert(contextMenuStripSysTray.Items.IndexOf(aboutToolStripMenuItem), languageMenuItem);
-            ApplyLanguage();
 
-            clickDelayTimer = new System.Timers.Timer(1000);
-            clickDelayTimer.Elapsed += ClickTimerCallBack;
-            clickDelayTimer.SynchronizingObject = this.contextMenuStripSysTray;
-            clickDelayTimer.AutoReset = false;
-            clickDelayTimer.Enabled = false;
-        }
+            quickMenu.Items.Add(new ToolStripSeparator());
 
-        public void StartTimer(int milliseconds)
-        {
-            clickDelayTimer.Interval = milliseconds;
-            clickDelayTimer.AutoReset = false;
-            clickDelayTimer.Enabled = true;
-        }
-
-        private void ClickTimerCallBack(Object source, ElapsedEventArgs e)
-        {
-            if (clickCount == 0)
+            var saveAs = new ToolStripMenuItem("Save Desktop As…")
             {
-                // fix context menu position
-                //contextMenuStripSysTray.Show(Cursor.Position);
+                ShortcutKeyDisplayString = ShortcutText(Program.Settings.HotkeySaveAs)
+            };
+            saveAs.Font = new Font(saveAs.Font, FontStyle.Bold);
+            saveAs.Click += (s, e) => BeginInvoke((Action)SaveDesktopAs);
+            quickMenu.Items.Add(saveAs);
+
+            var undo = new ToolStripMenuItem("Undo Last Restore")
+            {
+                Enabled = Program.pwp.HasSnapshot(key, PersistentWindowProcessor.UndoSnapshotId),
+                ShortcutKeyDisplayString = ShortcutText(Program.Settings.HotkeyUndo)
+            };
+            undo.Click += (s, e) => UndoLastRestore();
+            quickMenu.Items.Add(undo);
+
+            var all = new ToolStripMenuItem("All Layouts…");
+            all.Click += (s, e) => BeginInvoke((Action)(() => OpenSettings(showLayouts: true)));
+            quickMenu.Items.Add(all);
+        }
+
+        private static string ShortcutText(int value)
+        {
+            return value == 0 ? "" : ShSettings.HotkeyText(value);
+        }
+
+        // =================================================================
+        // Section 3: layout actions
+        // =================================================================
+        public void RestoreLayout(NamedLayout layout)
+        {
+            if (layout.DisplayKey != Program.pwp.CurrentDisplayKey)
+            {
+                Balloon("Different monitors", "\"" + layout.Name + "\" was saved on " + LayoutStore.DescribeMonitors(layout.DisplayKey) + ".");
                 return;
             }
-
-            pauseUpgradeCounter = true;
-
-            Keys keyPressed = Keys.None;
-            //check 0-9 key pressed
-            for (Keys i = Keys.D0; i <= Keys.D9; ++i)
-            {
-                if (User32.GetAsyncKeyState((int)i) != 0)
-                {
-                    keyPressed = i;
-                    break;
-                }
-            }
-
-            //check a-z pressed
-            if (keyPressed == Keys.None)
-            for (Keys i = Keys.A; i <= Keys.Z; ++i)
-            {
-                if (User32.GetAsyncKeyState((int)i) != 0)
-                {
-                    keyPressed = i;
-                    break;
-                }
-            }
-
-            if (keyPressed == Keys.None)
-            {
-                if (User32.GetAsyncKeyState((int)Keys.Oem3) != 0)
-                {
-                    keyPressed = Keys.Oem3;
-                }
-            }
-
-            int totalSpecialKeyPressed = shiftKeyPressed + altKeyPressed;
-
-            if (clickCount > 2)
-            {
-            }
-            else if (totalSpecialKeyPressed > clickCount)
-            {
-                //no more than one key can be pressed
-            }
-            else if (altKeyPressed == clickCount && altKeyPressed != 0 && ctrlKeyPressed == 0)
-            {
-                //restore previous workspace (not necessarily a snapshot)
-                Program.RestoreSnapshot(MaxSnapshots - 1);
-            }
-            else
-            {
-                if (keyPressed == Keys.None)
-                {
-                    if (clickCount == 1 && firstClick && !doubleClick)
-                    {
-                        if (ctrlKeyPressed > 0 && altKeyPressed > 0 && shiftKeyPressed == 0)
-                            Program.FgWindowToBottom();
-                        else if (ctrlKeyPressed > 0 && altKeyPressed == 0 && shiftKeyPressed == 0)
-                            Program.RecallLastKilledPosition();
-                        else if (ctrlKeyPressed == 0 && altKeyPressed == 0 && shiftKeyPressed > 0)
-                            Program.CenterWindow();
-                        else if (ctrlKeyPressed == 0 && altKeyPressed == 0 && shiftKeyPressed == 0)
-                            //restore unnamed(default) snapshot
-                            Program.RestoreSnapshot(0);
-                    }
-                    else if (clickCount == 2 && firstClick && doubleClick)
-                        Program.CaptureSnapshot(0, delayCapture: shiftKeyPressed > 0);
-                }
-                else
-                {
-                    int snapshot = -1;
-                    if (keyPressed == Keys.Oem3)
-                        snapshot = MaxSnapshots - 2;
-                    else if (keyPressed >= Keys.D0 && keyPressed <= Keys.D9)
-                        snapshot = keyPressed - Keys.D0;
-                    else if (keyPressed >= Keys.A && keyPressed <= Keys.Z)
-                        snapshot = keyPressed - Keys.A + 10; 
-
-                    if (snapshot < 0)
-                    {
-                        //invalid key pressed
-                    }
-                    else if (clickCount == 1 && firstClick && !doubleClick)
-                    {
-                        Program.RestoreSnapshot(snapshot);
-                    }
-                    else if (clickCount == 2 && firstClick && doubleClick)
-                    {
-                        Program.CaptureSnapshot(snapshot, delayCapture: shiftKeyPressed > 0);
-                    }
-                }
-            }
-
-            clickCount = 0;
-            doubleClick = false;
-            firstClick = false;
-            ctrlKeyPressed = 0;
-            shiftKeyPressed = 0;
-            altKeyPressed = 0;
+            Program.RestoreSnapshot(layout.Slot);
+            Program.Layouts.Touch(layout);
+            Log.Event("restored layout {0} (slot {1})", layout.Name, layout.Slot);
         }
 
-        //private void TimerEventProcessor(Object myObject, EventArgs myEventArgs)
-        public void UpdateMenuEnable(bool enableRestoreFromDB, bool checkUpgrade)
+        public void UndoLastRestore()
         {
-            if (enableRestoreFromDB)
-                restoreToolStripMenuItem.Image = null;
-            else
-                restoreToolStripMenuItem.Image = Properties.Resources.question;
-
-            if (checkUpgrade && upgradeNoticeOn)
+            string key = Program.pwp.CurrentDisplayKey;
+            if (!Program.pwp.HasSnapshot(key, PersistentWindowProcessor.UndoSnapshotId))
             {
-                if (pauseUpgradeCounter)
-                {
-                    pauseUpgradeCounter = false;
-                }
-                else
-                {
-                    if (skipUpgradeCounter == 0)
-                    {
-                        if (initialCheckUpgrade)
-                        {
-                            initialCheckUpgrade = false;
-                            var dst_dir = Path.Combine($"{Program.AppdataFolder}", "upgrade");
-                            var upgrade_exe = Path.Combine(dst_dir, $"{Application.ProductName}.exe");
-                            if (Directory.Exists(dst_dir) && File.Exists(upgrade_exe))
-                            {
-                                var version = AssemblyName.GetAssemblyName(upgrade_exe).Version;
-                                string[] latest = version.ToString().Split('.');
-                                int latest_major = Int32.Parse(latest[0]);
-                                int latest_minor = Int32.Parse(latest[1]);
-
-                                string[] current = Application.ProductVersion.Split('.');
-                                int current_major = Int32.Parse(current[0]);
-                                int current_minor = Int32.Parse(current[1]);
-
-                                if (latest_major > current_major ||
-                                    latest_major == current_major && latest_minor > current_minor)
-                                {
-                                    //upgrade version already downloaded, skip the initial notice to give user more time to make decision
-                                    skipUpgradeCounter++;
-                                    return;
-                                }
-                            }
-                        }
-                        CheckUpgradeSafe();
-                    }
-
-                    skipUpgradeCounter = (skipUpgradeCounter + 1) % 31;
-                }
+                Balloon("Nothing to undo", "No layout has been restored on these monitors yet.");
+                return;
             }
-        }
-        
-        public void EnableSnapshotRestore(bool enable)
-        {
-            restoreSnapshotMenuItem.Enabled = enable;
+            Program.RestoreSnapshot(PersistentWindowProcessor.UndoSnapshotId);
         }
 
-        private void CheckUpgradeSafe()
+        public void SaveDesktopAs()
         {
+            if (dialogOpen)
+                return;
+            string key = Program.pwp.CurrentDisplayKey;
+            if (string.IsNullOrEmpty(key))
+                return;
+
+            string suggestion = "Layout " + (Program.Layouts.ForDisplay(key).Count + 1);
+            string name;
+            dialogOpen = true;
             try
             {
-                CheckUpgrade();
-            }
-            catch (Exception ex)
-            {
-                Program.LogError(ex.ToString());
-            }
-        }
-
-        private void CheckUpgrade()
-        {
-            ServicePointManager.Expect100Continue = true;
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            var cli = new WebClient();
-            string data = cli.DownloadString($"{Program.ProjectUrl}/releases");
-
-            string latest_pattern = "releases/latest";
-            int index = data.IndexOf(latest_pattern);
-            index -= 256;
-            data = data.Substring(index, 256);
-            string pattern = "releases/tag/";
-            index = data.IndexOf(pattern);
-            string latestVersion = data.Substring(index + pattern.Length, data.Substring(index + pattern.Length, 6).LastIndexOf('"'));
-
-            string[] latest = latestVersion.Split('.');
-            int latest_major = Int32.Parse(latest[0]);
-            int latest_minor = Int32.Parse(latest[1]);
-
-            string[] current = Application.ProductVersion.Split('.');
-            int current_major = Int32.Parse(current[0]);
-            int current_minor = Int32.Parse(current[1]);
-
-            if (current_major < latest_major
-                || current_major == latest_major && current_minor < latest_minor)
-            {
-                notifyIconMain.ShowBalloonTip(5000, Lang.T("balloon.upgradeAvailable", Application.ProductName, latestVersion), Lang.T("balloon.upgradeNoticeHint"), ToolTipIcon.Info);
-                upgradeAvailableVersion = latestVersion;
-                upgradeNoticeMenuItem.Text = Lang.T("menu.upgradeTo", latestVersion);
-
-                if (!upgradeDownloaded.ContainsKey(latestVersion))
+                using (var dlg = new NameLayoutDialog("Save Desktop As", "Name this window layout:", suggestion, LayoutStore.DescribeMonitors(key)))
                 {
-                    string url = Program.ProjectUrl + "/releases";
-                    var os_version = Environment.OSVersion;
-                    if (os_version.Version.Major < 10)
-                        Process.Start(url);
-                    else if (os_version.Version.Build < 22000)
-                        Process.Start(url);
-                    /* windows 11
-                    else
-                        Process.Start(new ProcessStartInfo(url));
-                    */
+                    if (dlg.ShowDialog() != DialogResult.OK)
+                        return;
+                    name = dlg.LayoutName;
+                }
 
-                    var src_file = $"{Program.ProjectUrl}/releases/download/{latestVersion}/{System.Windows.Forms.Application.ProductName}{latestVersion}.zip";
-                    var dst_file = $"{Program.AppdataFolder}/upgrade.zip";
-                    var dst_dir = Path.Combine($"{Program.AppdataFolder}", "upgrade");
-                    var install_dir = Application.StartupPath;
-
+                // same name on the same monitors: replace it after asking
+                var existing = Program.Layouts.FindByName(key, name);
+                int slot;
+                if (existing != null)
+                {
+                    if (MessageBox.Show("Replace the existing layout \"" + existing.Name + "\" with the current desktop?",
+                        "ScreenHerder", MessageBoxButtons.OKCancel, MessageBoxIcon.Question,
+                        MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly) != DialogResult.OK)
+                        return;
+                    slot = existing.Slot;
+                }
+                else
+                {
+                    slot = Program.Layouts.AllocateSlot(key);
+                    if (slot < 0)
                     {
-                        cli.DownloadFile(src_file, dst_file);
-                        if (Directory.Exists(dst_dir))
-                            Directory.Delete(dst_dir, true);
-                        ZipFile.ExtractToDirectory(dst_file, dst_dir);
-                        upgradeDownloaded[latestVersion] = true;
-
-                        string batFile = Path.Combine(Program.AppdataFolder, $"pw_upgrade.bat");
-                        string content = Program.WaitPwFinish;
-                        content += $"\ncopy /Y \"{dst_dir}\\*.*\" \"{install_dir}\"";
-                        content += "\nstart \"\" /B \"" + Path.Combine(install_dir, Application.ProductName) + ".exe\" " + Program.CmdArgs;
-                        File.WriteAllText(batFile, content, System.Text.Encoding.Default);
-
-                        if (autoUpgrade)
-                            Upgrade();
-                        else
-                            notifyIconMain.Icon = Program.UpdateIcon;
+                        MessageBox.Show("All 36 layout slots are in use for these monitors. Delete a layout under Settings > Layouts first.",
+                            "ScreenHerder", MessageBoxButtons.OK, MessageBoxIcon.Warning,
+                            MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly);
+                        return;
                     }
                 }
+
+                SaveToSlot(key, slot, name);
+            }
+            finally
+            {
+                dialogOpen = false;
             }
         }
 
-        private void Exit()
+        private void SaveToSlot(string key, int slot, string name)
+        {
+            Program.CaptureSnapshot(slot, prompt: false);
+            Program.Layouts.Upsert(key, slot, name);
+            Balloon("Layout saved", "\"" + name + "\" (key " + char.ToUpperInvariant(Program.SnapshotIdToChar(slot)) + ")");
+        }
+
+        // letter/digit pressed while the quick menu was open
+        private void HandleSlotKey(char c, bool shift)
+        {
+            string key = Program.pwp.CurrentDisplayKey;
+            int slot = Program.SnapshotCharToId(c);
+            if (slot < 0 || slot > LayoutStore.MaxSlot || string.IsNullOrEmpty(key))
+                return;
+
+            var layout = Program.Layouts.FindBySlot(key, slot);
+            if (shift)
+            {
+                string name = layout != null ? layout.Name : "Layout " + char.ToUpperInvariant(c);
+                SaveToSlot(key, slot, name);
+            }
+            else if (layout != null && Program.pwp.HasSnapshot(key, slot))
+            {
+                RestoreLayout(layout);
+            }
+            else
+            {
+                Balloon("No layout on " + char.ToUpperInvariant(c), "Hold Shift and press " + char.ToUpperInvariant(c) + " in the menu to save one there.");
+            }
+        }
+
+        // =================================================================
+        // Section 4: windows (Settings, Help) and shortcuts
+        // =================================================================
+        public void OpenSettings(bool showLayouts = false)
+        {
+            if (settingsForm == null || settingsForm.IsDisposed)
+            {
+                settingsForm = new SettingsForm(Program.Settings);
+                settingsForm.FormClosed += (s, e) => settingsForm = null;
+            }
+            if (showLayouts)
+                settingsForm.ShowLayoutsTab();
+            settingsForm.Show();
+            settingsForm.WindowState = FormWindowState.Normal;
+            settingsForm.Activate();
+        }
+
+        public void OpenHelp()
+        {
+            if (helpForm == null || helpForm.IsDisposed)
+            {
+                helpForm = new HelpForm();
+                helpForm.FormClosed += (s, e) => helpForm = null;
+            }
+            helpForm.Show();
+            helpForm.Activate();
+        }
+
+        public void ApplyHotkeys(ShSettings s)
+        {
+            hotkeys.UnregisterAll();
+            var failed = new List<string>();
+            if (!hotkeys.Register(s.HotkeyQuickMenu, () => ShowQuickMenu()))
+                failed.Add(ShSettings.HotkeyText(s.HotkeyQuickMenu));
+            if (!hotkeys.Register(s.HotkeySaveAs, () => SaveDesktopAs()))
+                failed.Add(ShSettings.HotkeyText(s.HotkeySaveAs));
+            if (!hotkeys.Register(s.HotkeyUndo, () => UndoLastRestore()))
+                failed.Add(ShSettings.HotkeyText(s.HotkeyUndo));
+            if (failed.Count > 0)
+                Balloon("Shortcut unavailable", string.Join(", ", failed) + " is already used by another program. Pick a different one in Settings > Shortcuts.");
+        }
+
+        public void Balloon(string title, string text)
+        {
+            if (Program.Gui)
+                notifyIconMain.ShowBalloonTip(4000, title, text, ToolTipIcon.Info);
+        }
+
+        // =================================================================
+        // Section 5: engine callbacks kept from the original tray form
+        // =================================================================
+        public void UpdateMenuEnable(bool enableRestoreFromDB, bool checkUpgrade)
+        {
+            // update checks are disabled in ScreenHerder; nothing to refresh
+        }
+
+        public void EnableSnapshotRestore(bool enable)
+        {
+            // the quick menu checks snapshot availability every time it opens
+        }
+
+        // =================================================================
+        // Section 6: exit
+        // =================================================================
+        public void Exit()
         {
             var process = Process.GetCurrentProcess();
             process.PriorityClass = ProcessPriorityClass.High;
@@ -349,307 +325,12 @@ namespace PersistentWindows.SystrayShell
             Program.WriteDataDump();
             Log.Event("Session exit");
 
-            this.notifyIconMain.Visible = false;
-            //this.notifyIconMain.Icon = null;
+            hotkeys.Dispose();
+            notifyIconMain.Visible = false;
 
             Log.Exit();
             Program.Stop();
             Application.Exit();
-        }
-
-        private void Upgrade()
-        {
-            Program.WriteDataDump();
-
-            string batFile = Path.Combine(Program.AppdataFolder, "pw_upgrade.bat");
-            Process.Start(batFile);
-            Exit();
-        }
-
-        private void CaptureWindowToDisk(object sender, EventArgs e)
-        {
-            Program.CaptureToDisk();
-            restoreToolStripMenuItem.Image = null;
-        }
-
-        private void RestoreWindowFromDisk(object sender, EventArgs e)
-        {
-            Program.RestoreFromDisk(restoreToolStripMenuItem.Image != null);
-        }
-
-        private void CaptureSnapshot(object sender, EventArgs e)
-        {
-            bool shift_key_pressed = (User32.GetKeyState(0x10) & 0x8000) != 0;
-            char snapshot_char = Program.EnterSnapshotName();
-            int id = Program.SnapshotCharToId(snapshot_char);
-            if (id != -1)
-                Program.CaptureSnapshot(id, prompt : false, delayCapture: shift_key_pressed);
-        }
-
-        private void RestoreSnapshot(object sender, EventArgs e)
-        {
-            char snapshot_char = Program.EnterSnapshotName();
-            int id = Program.SnapshotCharToId(snapshot_char);
-            if (id != -1)
-            {
-                // for debug issue #109 only
-                //Program.ChangeZorderMethod();
-
-                Program.RestoreSnapshot(id);
-            }
-        }
-
-
-        private void PauseResumeAutoRestore(object sender, EventArgs e)
-        {
-            if (pauseAutoRestore)
-            {
-                Program.ResumeAutoRestore();
-                pauseAutoRestore = false;
-                pauseResumeToolStripMenuItem.Text = Lang.T("menu.pauseAutoRestore");
-            }
-            else
-            {
-                pauseAutoRestore = true;
-                Program.PauseAutoRestore();
-                pauseResumeToolStripMenuItem.Text = Lang.T("menu.resumeAutoRestore");
-            }
-        }
-
-        private void WebCommander(object sender, EventArgs e)
-        {
-            if ((User32.GetKeyState(0x11) & 0x8000) != 0)
-                HotKeyForm.InvokeFromMenu();
-            else if (webpageCommanderOn)
-            {
-                webpageCommanderOn = false;
-                File.Create(Program.DisableWebpageCommander);
-                this.invokeWebCommander.Text = Lang.T("menu.enableWebCommander");
-                HotKeyForm.Stop();
-            }
-            else
-            {
-                try
-                {
-                    File.Delete(Program.DisableWebpageCommander);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex.ToString());
-                }
-
-                webpageCommanderOn = true;
-                this.invokeWebCommander.Text = Lang.T("menu.disableWebCommander");
-                HotKeyForm.Start(Program.hotkey);
-            }
-        }
-
-        private void ToggleIcon(object sender, EventArgs e)
-        {
-            if (toggleIcon)
-            {
-                notifyIconMain.Icon = Program.IdleIcon;
-                toggleIcon = !toggleIcon;
-                toggleIconMenuItem.Text = Lang.T("menu.tryCustomIcon");
-            }
-            else
-            {
-                using (OpenFileDialog openFileDialog = new OpenFileDialog())
-                {
-                    //openFileDialog.InitialDirectory = "c:\\";
-                    openFileDialog.Filter = "*.ico, *.png, *.jpg, *.bmp, *.gif | *.ico;*.png;*.jpg;*.bmp;*.gif | *.ico | *.ico";
-                    openFileDialog.FilterIndex = 1;
-                    openFileDialog.RestoreDirectory = true;
-
-                    if (openFileDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        //Get the path of specified file
-                        string filePath = openFileDialog.FileName;
-                        if (String.IsNullOrEmpty(filePath))
-                            return;
-                        if (filePath.EndsWith(".ico"))
-                            notifyIconMain.Icon = new Icon(filePath);
-                        else
-                        {
-                            using (var bitmap = new Bitmap(filePath))
-                            {
-                                IntPtr hIcon = bitmap.GetHicon();
-                                notifyIconMain.Icon = Icon.FromHandle(hIcon).Clone() as Icon;
-                                User32.DestroyIcon(hIcon);
-                            }
-                        }
-                        toggleIcon = !toggleIcon;
-                        toggleIconMenuItem.Text = Lang.T("menu.disableCustomIcon");
-                    }
-                }
-            }
-        }
-
-        private void PauseResumeUpgradeNotice(Object sender, EventArgs e)
-        {
-            if (upgradeAvailableVersion != null)
-            {
-                Upgrade();
-            }
-            else if (upgradeNoticeOn)
-            {
-                upgradeNoticeOn = false;
-                upgradeNoticeMenuItem.Text = Lang.T("menu.enableUpgradeNotice");
-                try
-                {
-                    File.Create(Program.DisableUpgradeNotice);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex.ToString());
-                }
-            }
-            else //upgrade notices are currently off
-            {
-                upgradeNoticeOn = true;
-                upgradeNoticeMenuItem.Text = Lang.T("menu.disableUpgradeNotice");
-                CheckUpgradeSafe();
-                try
-                {
-                    File.Delete(Program.DisableUpgradeNotice);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex.ToString());
-                }
-            }
-        }
-
-        private void SelectLanguage(Object sender, EventArgs e)
-        {
-            Lang.Set((string)((ToolStripMenuItem)sender).Tag);
-            ApplyLanguage();
-            notifyIconMain.ShowBalloonTip(5000, Lang.T("balloon.languageSwitched"),
-                Lang.T("balloon.languageApplied"), ToolTipIcon.Info);
-        }
-
-        // re-apply every user-visible text in place, so switching language takes effect immediately
-        private void ApplyLanguage()
-        {
-            languageMenuItem.Text = Lang.T("menu.language");
-            foreach (ToolStripMenuItem it in languageMenuItem.DropDownItems)
-                it.Checked = ((string)it.Tag) == Lang.CurrentLang;
-            captureToolStripMenuItem.Text = Lang.T("menu.captureDisk");
-            restoreToolStripMenuItem.Text = Lang.T("menu.restoreDisk");
-            restoreAllParkedMenuItem.Text = Lang.T("menu.restoreMinimized");
-            captureSnapshotMenuItem.Text = Lang.T("menu.captureSnapshot");
-            restoreSnapshotMenuItem.Text = Lang.T("menu.restoreSnapshot");
-            pauseResumeToolStripMenuItem.Text = pauseAutoRestore ?
-                Lang.T("menu.resumeAutoRestore") : Lang.T("menu.pauseAutoRestore");
-            toggleIconMenuItem.Text = toggleIcon ?
-                Lang.T("menu.disableCustomIcon") : Lang.T("menu.tryCustomIcon");
-            invokeWebCommander.Text = webpageCommanderOn ?
-                Lang.T("menu.disableWebCommander") : Lang.T("menu.enableWebCommander");
-            if (upgradeAvailableVersion != null)
-                upgradeNoticeMenuItem.Text = Lang.T("menu.upgradeTo", upgradeAvailableVersion);
-            else
-                upgradeNoticeMenuItem.Text = upgradeNoticeOn ?
-                    Lang.T("menu.disableUpgradeNotice") : Lang.T("menu.enableUpgradeNotice");
-            aboutToolStripMenuItem.Text = Lang.T("menu.help");
-            exitToolStripMenuItem.Text = Lang.T("menu.exit");
-            notifyIconMain.BalloonTipText = Lang.T("balloon.restoring");
-        }
-
-        private void AboutToolStripMenuItemClickHandler(object sender, EventArgs e)
-        {
-            Process.Start(Program.ProjectUrl + "/blob/master/Help.md");
-        }
-
-        protected override void SetVisibleCore(bool value)
-        {
-            // Never allow the form to become visible — it's a systray-only app
-            base.SetVisibleCore(false);
-        }
-
-        private void RestoreAllParkedClickHandler(object sender, EventArgs e)
-        {
-            Program.pwp.RestoreAllParked();
-        }
-
-        private void ExitToolStripMenuItemClickHandler(object sender, EventArgs e)
-        {
-            bool ctrl_key_pressed = (User32.GetKeyState(0x11) & 0x8000) != 0;
-            if (ctrl_key_pressed)
-                Program.Restart(2, hidden:false);
-            Exit();
-        }
-
-        private void IconMouseClick(object sender, MouseEventArgs e)
-        {
-            if (!doubleClick && e.Button == MouseButtons.Left)
-            {
-                firstClick = true;
-                clickTime = DateTime.Now;
-                Console.WriteLine("MouseClick");
-
-                // clear memory of keyboard input
-                for (Keys i = Keys.D0; i <= Keys.D9; ++i)
-                {
-                    User32.GetAsyncKeyState((int)i);
-                }
-
-                for (Keys i = Keys.A; i <= Keys.Z; ++i)
-                {
-                    User32.GetAsyncKeyState((int)i);
-                }
-
-                User32.GetAsyncKeyState((int)Keys.Oem3);
-            }
-        }
-
-        private void IconMouseDoubleClick(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
-            {
-                DateTime now = DateTime.Now;
-                var ms = now.Subtract(clickTime).TotalMilliseconds;
-                Console.WriteLine("{0}", ms);
-                if (ms < 30 || ms > SystemInformation.DoubleClickTime / 2)
-                {
-                    Program.LogError($"ignore bogus double click {ms} ms");
-                    return;
-                }
-
-                doubleClick = true;
-                Console.WriteLine("MouseDoubleClick");
-            }
-        }
-
-        private void IconMouseDown(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
-            {
-                Console.WriteLine("Down");
-
-                if ((User32.GetKeyState(0x11) & 0x8000) != 0)
-                    ctrlKeyPressed++;
-
-                if ((User32.GetKeyState(0x10) & 0x8000) != 0)
-                    shiftKeyPressed++;
-
-                if ((User32.GetKeyState(0x12) & 0x8000) != 0)
-                    altKeyPressed++;
-            }
-        }
-
-        private void IconMouseUp(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
-            {
-                Console.WriteLine("Up");
-
-                clickCount++;
-                StartTimer(SystemInformation.DoubleClickTime);
-            }
-            else if (e.Button == MouseButtons.Middle)
-            {
-                notifyIconMain.Icon = Program.IdleIcon;
-            }
         }
     }
 }

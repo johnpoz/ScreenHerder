@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
@@ -15,7 +15,7 @@ namespace PersistentWindows.SystrayShell
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
-        public static readonly string ProjectUrl = "https://www.github.com/kangyu-california/PersistentWindows";
+        public static readonly string ProjectUrl = "https://github.com/kangyu-california/PersistentWindows"; // upstream engine (credit)
         public static readonly string Contributors = $@"{ProjectUrl}/graphs/contributors";
         public static System.Drawing.Icon IdleIcon = null;
         public static System.Drawing.Icon BusyIcon = null;
@@ -29,12 +29,15 @@ namespace PersistentWindows.SystrayShell
         public static uint hotkey = 'W'; //Alt + W
         public static string WaitPwFinish = @":wait_to_finish
 timeout /t 2 /nobreak >nul
-tasklist | find ""PersistentWindows"" >nul
+tasklist | find ""ScreenHerder"" >nul
 if not errorlevel 1 goto wait_to_finish";
 
         private const int MaxSnapshots = 38; // 0-9, a-z, ` and final one for undo
 
-        public static PersistentWindowProcessor pwp = null;    
+        public static PersistentWindowProcessor pwp = null;
+        public static ShSettings Settings = new ShSettings();   // ScreenHerder settings (settings.json)
+        public static LayoutStore Layouts = null;             // named layouts (layouts.json)
+        static System.Threading.Mutex singleInstance;
         public static SystrayForm systrayForm = null;
         static bool silent = false; //suppress all balloon tip & sound prompt
         static bool notification = false; //pop balloon when auto restore
@@ -99,9 +102,25 @@ if not errorlevel 1 goto wait_to_finish";
             string restore_disk = "";
             string capture_disk = "";
 
-            foreach (var arg in args)
+            // ScreenHerder: load settings.json and turn it into the engine's
+            // command-line flags. Real command-line arguments come after them,
+            // so they still win. Only real arguments are kept for restarts.
+            string settingsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ScreenHerder");
+            foreach (var a in args)
             {
-                CmdArgs += arg + " ";
+                if (a == "-redirect_appdata") settingsFolder = ".";
+                else if (a == "-portable_mode") settingsFolder = "user_data";
+            }
+            Settings = ShSettings.Load(settingsFolder);
+            var settingsArgs = BuildEngineArgs(Settings);
+            var allArgs = new System.Collections.Generic.List<string>(settingsArgs);
+            allArgs.AddRange(args);
+            int argIndex = 0;
+
+            foreach (var arg in allArgs)
+            {
+                if (argIndex++ >= settingsArgs.Count)
+                    CmdArgs += arg + " ";
 
                 if (halt_restore > 1)
                 {
@@ -426,6 +445,22 @@ if not errorlevel 1 goto wait_to_finish";
                 return;
             }
 
+            // ScreenHerder: only one copy runs at a time per user session
+            bool firstInstance;
+            singleInstance = new System.Threading.Mutex(true, "Local\\ScreenHerder.SingleInstance", out firstInstance);
+            if (!firstInstance && !waiting_taskbar)
+            {
+                Log.Event("ScreenHerder is already running");
+                return;
+            }
+            if (!firstInstance)
+            {
+                // relaunch after a restart: wait for the previous copy to let go
+                try { singleInstance.WaitOne(15000); } catch (System.Threading.AbandonedMutexException) { }
+            }
+
+            Layouts = new LayoutStore(appDataFolder);
+
             DisableWebpageCommander = Path.Combine(AppdataFolder, "disable_webpage_commander");
             DisableUpgradeNotice = Path.Combine(AppdataFolder, "disable_upgrade_notice");
 
@@ -492,8 +527,7 @@ if not errorlevel 1 goto wait_to_finish";
                 }
             }
 
-            systrayForm = new SystrayForm(check_upgrade);
-            systrayForm.autoUpgrade = auto_upgrade;
+            systrayForm = new SystrayForm();
 
             if (relaunch_delay > 0)
             {
@@ -572,7 +606,7 @@ if not errorlevel 1 goto wait_to_finish";
             }
             catch (Exception )
             {
-                Log.Error("taskbar not ready, restart PersistentWindows");
+                Log.Error("taskbar not ready, restart ScreenHerder");
             }
 
             Restart(1);
@@ -705,7 +739,7 @@ if not errorlevel 1 goto wait_to_finish";
             else
             {
                 if (String.IsNullOrEmpty(text))
-                    text = $"{Application.ProductName} {Application.ProductVersion}";
+                    text = "ScreenHerder";
                 systrayForm.notifyIconMain.Text = text.Substring(0, Math.Min(40, text.Length));
             }
         }
@@ -960,6 +994,66 @@ if not errorlevel 1 goto wait_to_finish";
                     pwp.processCmd[processId] = fields[1];
                 }
             }
+        }
+
+        // =================================================================
+        // ScreenHerder settings -> engine flags (same flags the original
+        // command line accepted). The update checker is always off.
+        // =================================================================
+        public static System.Collections.Generic.List<string> BuildEngineArgs(ShSettings s)
+        {
+            var c = System.Globalization.CultureInfo.CurrentCulture;
+            var a = new System.Collections.Generic.List<string> { "-check_upgrade=0" };
+            if (!s.ShowSplash) a.Add("-splash=0");
+            if (s.NotifyOnRestore) a.Add("-notification=1");
+            if (s.AskBeforeAutoRestore) a.Add("-prompt_session_restore");
+            if (s.RestoreDelaySeconds > 0) { a.Add("-delay_auto_restore"); a.Add(s.RestoreDelaySeconds.ToString(c)); }
+            if (s.ZOrderMode == 0) a.Add("-fix_zorder=0");
+            else if (s.ZOrderMode == 2) a.Add("-fix_zorder=1");
+            if (!s.FastRestore) a.Add("-fast_restore=0");
+            if (!s.FixOffscreen) a.Add("-offscreen_fix=0");
+            if (s.EnhancedOffscreenFix) a.Add("-enhanced_offscreen_fix");
+            if (!s.FixTaskbar) a.Add("-fix_taskbar=0");
+            if (!s.FixUnminimized) a.Add("-fix_unminimized_window=0");
+            if (!s.RestoreNewWindowsToLastPosition) a.Add("-auto_restore_new_window_to_last_capture=0");
+            if (s.RestoreClosedWindows) a.Add("-auto_restore_missing_windows=1");
+            if (s.ShowDesktopWhenDisplayChanges) a.Add("-show_desktop_when_display_changes");
+            if (!string.IsNullOrWhiteSpace(s.IgnoreProcesses)) { a.Add("-ignore_process"); a.Add(s.IgnoreProcesses.Trim()); }
+            if (s.CaptureDelaySeconds > 0) { a.Add("-delay_auto_capture"); a.Add(s.CaptureDelaySeconds.ToString(c)); }
+            if (!s.CtrlMinimizeToTray) a.Add("-ctrl_minimize_to_tray=0");
+            if (!s.SwapOnAltActivate) a.Add("-swap_window_pos_when_alt_activate=0");
+            if (!s.DualPosition) a.Add("-foreground_background_dual_position=0");
+            if (!s.WindowCommander) a.Add("-hotkey_window=0");
+            return a;
+        }
+
+        // one string per settings object, used to tell whether a restart is needed
+        public static string EngineArgs(ShSettings s)
+        {
+            return string.Join("\u0001", BuildEngineArgs(s));
+        }
+
+        public static void ApplySettings(ShSettings s)
+        {
+            try
+            {
+                s.Save(AppdataFolder);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("settings save failed: " + ex);
+                MessageBox.Show("ScreenHerder couldn't save its settings: " + ex.Message, "ScreenHerder",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            Settings = s;
+            systrayForm.ApplyHotkeys(s);
+        }
+
+        public static void RestartForSettings()
+        {
+            Restart(1);
+            systrayForm.Exit();
         }
 
         public static void LogError(string format, params object[] args)
