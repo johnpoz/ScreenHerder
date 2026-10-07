@@ -77,7 +77,7 @@ namespace PersistentWindows.SystrayShell
                     "Settings, Help and Exit. In Settings, rest the pointer on any option for 3 seconds to see what it does (turn tips off under General).",
                     "",
                     "STARTING AND MINIMIZING",
-                    "ScreenHerder starts when you sign in; turn that off under Settings > General. Minimized ScreenHerder windows hide in the tray; right-click the sheep and choose Settings or Help to bring them back.",
+                    "ScreenHerder starts when you sign in (it's listed in Windows' Startup apps); turn that off under Settings > General. Minimized ScreenHerder windows hide in the tray; right-click the sheep and choose Settings or Help to bring them back.",
                     "",
                     "SHORTCUTS",
                     "Ctrl+Alt+L opens the quick menu from anywhere. Change it, or add shortcuts for Save Desktop As and Undo, under Settings > Shortcuts.",

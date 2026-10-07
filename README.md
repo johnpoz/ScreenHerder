@@ -12,7 +12,7 @@ Maintained by John Pozadzides ([johnp.me](https://johnp.me)).
 
 ### "Windows Protected Your PC"
 
-When you run the installer, Windows will warn that it comes from an unknown publisher. That's expected: ScreenHerder is a small personal project, and it isn't signed with a paid code-signing certificate. Click **More info**, then **Run anyway**. Windows then asks for permission to make changes; click **Yes**, which lets the installer set ScreenHerder to start when you sign in.
+When you run the installer, Windows will warn that it comes from an unknown publisher. That's expected: ScreenHerder is a small personal project, and it isn't signed with a paid code-signing certificate. Click **More info**, then **Run anyway**. ScreenHerder installs just for you and doesn't need administrator rights, so there's no other prompt.
 
 ## How It Works
 
@@ -58,7 +58,7 @@ More: [Restore](docs/screenshots/settings-restore.png) · [Shortcuts](docs/scree
 
 ## Installing
 
-Run ScreenHerder-Setup-<version>.exe. It installs to `%LOCALAPPDATA%\Programs\ScreenHerder`, adds a Start menu entry, optionally a desktop shortcut, and (by default) a sign-in task so ScreenHerder starts with the rights it needs to move every window. It removes the original PersistentWindows first if present. Uninstall from Settings > Apps. The installer is unsigned; see "Windows Protected Your PC" above.
+Run ScreenHerder-Setup-<version>.exe. It installs to `%LOCALAPPDATA%\Programs\ScreenHerder` without administrator rights, adds a Start menu entry, optionally a desktop shortcut, and (by default) a Startup entry so ScreenHerder starts when you sign in. It closes the original PersistentWindows if it's running. Because ScreenHerder runs as a normal user, it can't move windows of programs that run as administrator, such as Task Manager. Uninstall from Settings > Apps. The installer is unsigned; see "Windows Protected Your PC" above.
 
 Data lives in `%LOCALAPPDATA%\ScreenHerder`: settings.json, layouts.json, icons.json and the window history database.
 
@@ -73,7 +73,7 @@ The app compiles on Linux or Windows with the .NET SDK's MSBuild against .NET Fr
 ```
 dotnet build Ninjacrab.PersistentWindows.Solution/Ninjacrab.PersistentWindows.Solution.sln -c Release \
   /p:FrameworkPathOverride=/usr/lib/mono/4.8-api /p:EnableWindowsTargeting=true
-makensis -DVERSION=1.3.0 installer/ScreenHerder.nsi
+makensis -DVERSION=1.3.1 installer/ScreenHerder.nsi
 ```
 
 `Directory.Build.targets` wires the NuGet references that non-SDK projects otherwise lose outside Visual Studio. See CHANGELOG.md for what changed in each version.

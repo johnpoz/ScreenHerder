@@ -129,60 +129,6 @@ namespace PersistentWindows.SystrayShell
             return view;
         }
 
-        // only GetItemObject is called; earlier slots keep the vtable order
-        [ComImport, Guid("000214E3-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IShellView
-        {
-            [PreserveSig] int GetWindow();
-            [PreserveSig] int ContextSensitiveHelp();
-            [PreserveSig] int TranslateAccelerator();
-            [PreserveSig] int EnableModeless();
-            [PreserveSig] int UIActivate();
-            [PreserveSig] int Refresh();
-            [PreserveSig] int CreateViewWindow();
-            [PreserveSig] int DestroyViewWindow();
-            [PreserveSig] int GetCurrentInfo();
-            [PreserveSig] int AddPropertySheetPages();
-            [PreserveSig] int SaveViewState();
-            [PreserveSig] int SelectItem();
-            [PreserveSig] int GetItemObject(uint uItem, ref Guid riid, out IntPtr ppv);
-        }
-
-        // -----------------------------------------------------------------
-        // Start a program through Explorer, so it runs as the normal
-        // (non-administrator) user even though ScreenHerder runs elevated.
-        // Uses the desktop's Shell.Application object (IShellDispatch2).
-        // -----------------------------------------------------------------
-        public static bool ShellExecuteAsUser(string file, string args, string dir)
-        {
-            IntPtr pView = GetDesktopShellView();
-            if (pView == IntPtr.Zero)
-                return false;
-            try
-            {
-                var view = (IShellView)Marshal.GetObjectForIUnknown(pView);
-                Guid iidDispatch = new Guid("00020400-0000-0000-C000-000000000046");
-                IntPtr pDisp;
-                if (view.GetItemObject(0 /* SVGIO_BACKGROUND */, ref iidDispatch, out pDisp) != 0 || pDisp == IntPtr.Zero)
-                    return false;
-                object folderView = Marshal.GetObjectForIUnknown(pDisp);
-                Marshal.Release(pDisp);
-                object app = folderView.GetType().InvokeMember("Application", BindingFlags.GetProperty, null, folderView, null);
-                app.GetType().InvokeMember("ShellExecute", BindingFlags.InvokeMethod, null, app,
-                    new object[] { file, args ?? "", dir ?? "", "", 1 });
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Log.Error("launch through Explorer failed for {0}: {1}", file, ex.Message);
-                return false;
-            }
-            finally
-            {
-                Marshal.Release(pView);
-            }
-        }
-
         // desktop's active shell view (caller releases the pointer)
         private static IntPtr GetDesktopShellView()
         {

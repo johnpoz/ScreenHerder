@@ -1,5 +1,15 @@
 # ScreenHerder Changelog
 
+## 1.3.1 (2026-10-06)
+
+- ScreenHerder no longer runs with administrator rights, and its installer no longer asks for them. Windows Defender flagged the 1.3.0 installer as "Behavior:Win32/DefenseEvasion.A!ml" (a machine-learning heuristic, not a known virus). The likely triggers were launching apps through Explorer to drop admin rights, scanning every process's command line, and an installer that ran PowerShell with script checks bypassed to create an admin startup task. 1.3.0 was never released.
+- Start at sign-in now uses the normal per-user Startup entry (it shows in Windows' Startup apps list). No scheduled task, no permission prompt.
+- The installer is per-user only: no PowerShell, no admin prompt. Uninstalling removes the Startup entry.
+- High-DPI awareness is declared in the app manifest instead of a compatibility-flag registry entry.
+- Reopened apps start the ordinary way. Command lines are read only for the app windows in a layout, not every process.
+- Trade-off: windows of programs that themselves run as administrator (Task Manager, for example) can't be moved by ScreenHerder.
+- Upgrading from 1.2.x: uninstall the old version first (Settings > Apps). Its uninstaller removes the old admin startup task. This also clears saved layouts, which need re-saving in 1.3 anyway so they can reopen apps.
+
 ## 1.3.0 (2026-10-06)
 
 - Loading a layout reopens apps from it that aren't running and moves them into place. Store apps (Calculator, Photos and the like) are included on a best-effort basis, and Explorer folder windows reopen to the same folder. Programs start as the normal user, never with ScreenHerder's administrator rights.

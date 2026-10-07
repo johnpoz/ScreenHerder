@@ -6,3 +6,5 @@ packages/
 .vs/
 CLAUDE.md
 .claude/
+# built installers are release assets, not source
+installer/*.exe

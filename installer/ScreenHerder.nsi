@@ -1,18 +1,19 @@
 ; =====================================================================
 ; ScreenHerder installer (NSIS 3, Modern UI 2)
-;   - installs to %LOCALAPPDATA%\Programs\ScreenHerder
+;   - per-user install to %LOCALAPPDATA%\Programs\ScreenHerder
+;   - no administrator rights, no PowerShell, no permission prompt
 ;   - Start menu shortcut, optional desktop shortcut
-;   - optional (default on) start at sign-in with highest privileges
-;   - removes an existing PersistentWindows install first
+;   - optional (default on) start at sign-in via the per-user Run entry
+;   - stops and removes a per-user PersistentWindows if present
 ;   - normal uninstaller under Settings > Apps
-; Build: makensis -DVERSION=1.0.0 -DBINDIR=<release folder> ScreenHerder.nsi
+; Build: makensis -DVERSION=1.3.1 -DBINDIR=<release folder> ScreenHerder.nsi
 ; =====================================================================
 Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.0.0"
+  !define VERSION "1.3.1"
 !endif
 !ifndef BINDIR
   !define BINDIR "..\Ninjacrab.PersistentWindows.Solution\SystrayShell\bin\Release"
@@ -21,11 +22,12 @@ Unicode true
 !define APPNAME   "ScreenHerder"
 !define PUBLISHER "John Pozadzides"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ScreenHerder"
+!define RUNKEY    "Software\Microsoft\Windows\CurrentVersion\Run"
 
 Name "${APPNAME}"
 OutFile "ScreenHerder-Setup-${VERSION}.exe"
 InstallDir "$LOCALAPPDATA\Programs\ScreenHerder"
-RequestExecutionLevel admin            ; required for the highest-privilege sign-in task
+RequestExecutionLevel user
 SetCompressor /SOLID lzma
 BrandingText "${APPNAME} ${VERSION}"
 
@@ -40,11 +42,10 @@ VIAddVersionKey "LegalCopyright" "GPL-3.0"
 !define MUI_ICON "..\Ninjacrab.PersistentWindows.Solution\SystrayShell\Resources\ScreenHerder.ico"
 !define MUI_UNICON "..\Ninjacrab.PersistentWindows.Solution\SystrayShell\Resources\ScreenHerder.ico"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "ScreenHerder puts your windows back where they belong when you change monitors, and lets you save named layouts you can switch between from the taskbar.$\r$\n$\r$\nIf the original PersistentWindows is installed, setup removes it first so the two don't fight over your windows.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "ScreenHerder puts your windows and desktop icons back where they belong when you change monitors, and lets you save named layouts you can switch between from the taskbar.$\r$\n$\r$\nIt installs just for you and doesn't need administrator rights.$\r$\n$\r$\nClick Next to continue."
 !define MUI_COMPONENTSPAGE_SMALLDESC
-!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN "$INSTDIR\ScreenHerder.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ScreenHerder now"
-!define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
@@ -55,25 +56,18 @@ VIAddVersionKey "LegalCopyright" "GPL-3.0"
 !insertmacro MUI_LANGUAGE "English"
 
 ; ---------------- Section 2: install ----------------
-Function .onInit
-  SetShellVarContext current
-FunctionEnd
-
 Section "ScreenHerder (required)" SecCore
   SectionIn RO
-  SetShellVarContext current
 
-  ; stop a running copy and remove the original PersistentWindows
+  ; close a running copy, and the original PersistentWindows if present
+  nsExec::Exec 'taskkill /IM ScreenHerder.exe'
+  nsExec::Exec 'taskkill /IM PersistentWindows.exe'
+  Sleep 1000
   nsExec::Exec 'taskkill /F /IM ScreenHerder.exe'
-  Sleep 500
-  SetOutPath "$INSTDIR\setup"
-  File "remove-upstream.ps1"
-  File "install-task.ps1"
-  File "remove-task.ps1"
-  DetailPrint "Removing PersistentWindows if present..."
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup\remove-upstream.ps1"'
 
-  ; program files
+  ; older ScreenHerder versions kept setup scripts here
+  RMDir /r "$INSTDIR\setup"
+
   SetOutPath "$INSTDIR"
   File "${BINDIR}\ScreenHerder.exe"
   File "${BINDIR}\ScreenHerder.exe.config"
@@ -87,10 +81,8 @@ Section "ScreenHerder (required)" SecCore
   File "${BINDIR}\translations.json"
   File "..\LICENSE"
 
-  ; Start menu
   CreateShortCut "$SMPROGRAMS\ScreenHerder.lnk" "$INSTDIR\ScreenHerder.exe" "" "$INSTDIR\ScreenHerder.exe" 0
 
-  ; uninstaller + Settings > Apps entry
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
@@ -104,42 +96,26 @@ Section "ScreenHerder (required)" SecCore
 SectionEnd
 
 Section "Start ScreenHerder when I sign in" SecAutostart
-  DetailPrint "Creating the sign-in task..."
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup\install-task.ps1" -ExePath "$INSTDIR\ScreenHerder.exe"'
+  WriteRegStr HKCU "${RUNKEY}" "ScreenHerder" '"$INSTDIR\ScreenHerder.exe"'
 SectionEnd
 
 Section /o "Desktop shortcut" SecDesktop
-  SetShellVarContext current
   CreateShortCut "$DESKTOP\ScreenHerder.lnk" "$INSTDIR\ScreenHerder.exe" "" "$INSTDIR\ScreenHerder.exe" 0
 SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecCore} "The ScreenHerder app and its Start menu entry."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecAutostart} "Recommended. Starts ScreenHerder automatically, with the rights it needs to move every window."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecAutostart} "Recommended. Starts ScreenHerder automatically when you sign in to Windows."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "Adds a ScreenHerder icon to the desktop."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
-; start through the sign-in task when it exists, so the app runs the same
-; way it will after every sign-in
-Function LaunchApp
-  ${If} ${SectionIsSelected} ${SecAutostart}
-    nsExec::Exec 'schtasks.exe /Run /TN "ScreenHerder"'
-  ${Else}
-    Exec '"$INSTDIR\ScreenHerder.exe"'
-  ${EndIf}
-FunctionEnd
-
 ; ---------------- Section 3: uninstall ----------------
-Function un.onInit
-  SetShellVarContext current
-FunctionEnd
-
 Section "Uninstall"
-  SetShellVarContext current
+  nsExec::Exec 'taskkill /IM ScreenHerder.exe'
+  Sleep 1000
   nsExec::Exec 'taskkill /F /IM ScreenHerder.exe'
-  Sleep 500
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup\remove-task.ps1" -ExePath "$INSTDIR\ScreenHerder.exe"'
 
+  DeleteRegValue HKCU "${RUNKEY}" "ScreenHerder"
   Delete "$SMPROGRAMS\ScreenHerder.lnk"
   Delete "$DESKTOP\ScreenHerder.lnk"
   RMDir /r "$INSTDIR"

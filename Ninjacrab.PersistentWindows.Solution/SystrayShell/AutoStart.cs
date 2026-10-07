@@ -1,8 +1,6 @@
 using System;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 using PersistentWindows.Common.Diagnostics;
 
@@ -10,89 +8,67 @@ namespace PersistentWindows.SystrayShell
 {
     // =====================================================================
     // "Start ScreenHerder when I sign in".
-    // The switch is the Task Scheduler task named "ScreenHerder" that the
-    // installer creates; there is no separate setting to drift out of sync.
-    // Creating or deleting that task needs administrator rights, so the
-    // change runs in an elevated PowerShell (Windows asks for permission
-    // unless ScreenHerder is already running elevated).
+    // Uses the normal per-user startup entry
+    // (HKCU\Software\Microsoft\Windows\CurrentVersion\Run), the same place
+    // Windows' own Startup apps list reads. No administrator rights and no
+    // permission prompt; the user can also switch it off in Task Manager >
+    // Startup apps or Settings > Apps > Startup.
     // =====================================================================
     public static class AutoStart
     {
-        private const string TaskName = "ScreenHerder";
+        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string ValueName = "ScreenHerder";
 
-        private static string SetupDir
+        private static string Command
         {
-            get { return Path.Combine(Application.StartupPath, "setup"); }
-        }
-
-        private static string InstallScript
-        {
-            get { return Path.Combine(SetupDir, "install-task.ps1"); }
+            get { return "\"" + Application.ExecutablePath + "\""; }
         }
 
         // ---------------- Section 1: availability and current state ----------------
-        // only an installed copy (with the setup scripts) can manage the task
+        // a copy run straight from a build folder shouldn't register itself
         public static bool CanManage
         {
-            get { return File.Exists(InstallScript); }
+            get
+            {
+                string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                return Application.ExecutablePath.StartsWith(local, StringComparison.OrdinalIgnoreCase)
+                    || Application.ExecutablePath.IndexOf("\\Program Files", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
         }
 
         public static bool IsEnabled()
         {
             try
             {
-                var psi = new ProcessStartInfo("schtasks.exe", "/Query /TN \"" + TaskName + "\"")
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-                using (var p = Process.Start(psi))
-                {
-                    p.StandardOutput.ReadToEnd();
-                    p.StandardError.ReadToEnd();
-                    p.WaitForExit(15000);
-                    return p.ExitCode == 0;
-                }
+                using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
+                    return k != null && k.GetValue(ValueName) != null;
             }
             catch (Exception ex)
             {
-                Log.Error("autostart query failed: " + ex.Message);
+                Log.Error("autostart read failed: " + ex.Message);
                 return false;
             }
         }
 
         // ---------------- Section 2: turn it on or off ----------------
-        // returns true when the task ends up in the requested state
         public static bool Set(bool on)
         {
-            string exe = Application.ExecutablePath;
-            string args = on
-                ? "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + InstallScript + "\" -ExePath \"" + exe + "\""
-                : "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"Unregister-ScheduledTask -TaskName '" + TaskName + "' -Confirm:$false\"";
             try
             {
-                var psi = new ProcessStartInfo("powershell.exe", args)
+                using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
                 {
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                using (var p = Process.Start(psi))
-                    p.WaitForExit(60000);
-            }
-            catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
-            {
-                // the user said No to the Windows permission prompt
-                return false;
+                    if (on)
+                        k.SetValue(ValueName, Command);
+                    else
+                        k.DeleteValue(ValueName, false);
+                }
+                return IsEnabled() == on;
             }
             catch (Exception ex)
             {
                 Log.Error("autostart change failed: " + ex.Message);
                 return false;
             }
-            return IsEnabled() == on;
         }
     }
 }

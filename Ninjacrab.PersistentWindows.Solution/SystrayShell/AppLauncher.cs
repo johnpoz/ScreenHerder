@@ -55,8 +55,8 @@ namespace PersistentWindows.SystrayShell
     // =====================================================================
     // Capture the programs behind the windows on screen, and reopen the
     // ones that aren't running when a layout is loaded.
-    //  - Programs start as the normal user (through Explorer), never with
-    //    ScreenHerder's administrator rights.
+    //  - ScreenHerder runs as the normal user (no administrator rights),
+    //    so programs are started the ordinary way and run as you.
     //  - A program whose file no longer exists, or a Store app that's no
     //    longer installed, is skipped and its spot left empty.
     //  - An app with several windows is launched once; the windows it
@@ -284,25 +284,24 @@ namespace PersistentWindows.SystrayShell
             return result;
         }
 
-        // command lines of all processes, minus the program itself
-        private static Dictionary<uint, string> ArgumentsByPid()
+        // what one app window's program was started with, minus the program itself
+        private static string ArgumentsOf(uint pid)
         {
-            var result = new Dictionary<uint, string>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process"))
+                using (var searcher = new ManagementObjectSearcher("SELECT CommandLine FROM Win32_Process WHERE ProcessId = " + pid))
                     foreach (ManagementObject mo in searcher.Get())
                     {
                         string cmd = mo["CommandLine"] as string;
                         if (cmd != null)
-                            result[(uint)mo["ProcessId"]] = StripProgram(cmd);
+                            return StripProgram(cmd);
                     }
             }
             catch (Exception ex)
             {
-                Log.Error("command line scan: " + ex.Message);
+                Log.Error("command line read: " + ex.Message);
             }
-            return result;
+            return null;
         }
 
         private static string StripProgram(string cmd)
@@ -328,13 +327,11 @@ namespace PersistentWindows.SystrayShell
             var records = new List<AppRecord>();
             try
             {
-                var args = ArgumentsByPid();
                 foreach (var w in ListWindows())
                 {
                     var r = w.AsRecord();
-                    string a;
-                    if (r.Kind == "exe" && args.TryGetValue(w.Pid, out a))
-                        r.Arguments = a;
+                    if (r.Kind == "exe")
+                        r.Arguments = ArgumentsOf(w.Pid);
                     var wp = new WINDOWPLACEMENT { length = Marshal.SizeOf(typeof(WINDOWPLACEMENT)) };
                     if (GetWindowPlacement(w.Hwnd, ref wp))
                     {
@@ -450,14 +447,32 @@ namespace PersistentWindows.SystrayShell
 
         private static bool Launch(AppRecord r)
         {
-            switch (r.Kind)
+            try
             {
-                case "folder":
-                    return DesktopIcons.ShellExecuteAsUser(r.FolderPath, "", "");
-                case "store":
-                    return DesktopIcons.ShellExecuteAsUser("shell:AppsFolder\\" + r.Aumid, "", "");
-                default:
-                    return DesktopIcons.ShellExecuteAsUser(r.ExePath, r.Arguments ?? "", Path.GetDirectoryName(r.ExePath));
+                ProcessStartInfo psi;
+                switch (r.Kind)
+                {
+                    case "folder":
+                        psi = new ProcessStartInfo("explorer.exe", "\"" + r.FolderPath + "\"");
+                        break;
+                    case "store":
+                        psi = new ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + r.Aumid);
+                        break;
+                    default:
+                        psi = new ProcessStartInfo(r.ExePath, r.Arguments ?? "")
+                        {
+                            WorkingDirectory = Path.GetDirectoryName(r.ExePath)
+                        };
+                        break;
+                }
+                psi.UseShellExecute = true;
+                Process.Start(psi)?.Dispose();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error("couldn't start {0}: {1}", r.DisplayName, ex.Message);
+                return false;
             }
         }
 

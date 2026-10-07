@@ -274,7 +274,7 @@ namespace PersistentWindows.SystrayShell
                 "How many of your most recently used layouts appear at the top of the left-click menu. Only layouts saved on the monitors you have plugged in right now are listed.");
             Heading(t, "Startup And Notifications");
             autoStart = Check(t, "Start ScreenHerder when I sign in", null,
-                "Starts ScreenHerder automatically every time you sign in to Windows, with the rights it needs to move every window. Turn this off if you'd rather start it yourself from the Start menu. Changing it asks Windows for permission, because it edits a scheduled task.");
+                "Starts ScreenHerder automatically every time you sign in to Windows. Turn this off if you'd rather start it yourself from the Start menu. It's the same switch as ScreenHerder's entry in Windows' Startup apps list.");
             showSplash = Check(t, "Show a splash screen when ScreenHerder starts", null,
                 "Shows a small ScreenHerder banner for a moment when the app starts, so you know it's running.");
             notifyRestore = Check(t, "Show a notification when windows are restored after a monitor change", null,
@@ -523,7 +523,7 @@ namespace PersistentWindows.SystrayShell
             {
                 if (!AutoStart.Set(autoStart.Checked))
                 {
-                    MessageBox.Show(this, "Windows didn't allow the change to starting at sign-in, so it was left as it was. Your other settings will still be saved.",
+                    MessageBox.Show(this, "ScreenHerder couldn't change whether it starts at sign-in, so that was left as it was. Your other settings will still be saved.",
                         "ScreenHerder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     autoStart.Checked = autoStartWas;
                 }
